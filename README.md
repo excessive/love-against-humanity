@@ -1,4 +1,4 @@
-love-against-humanity
+LÖVE Against Humanity
 =====================
 
-LÖVE Against Humanity is a Cards Against Humanity clone written with LÖVE, because we can.
+LÖVE Against Humanity is a Cards Against Humanity clone written with LÖVE, because rainbows.
