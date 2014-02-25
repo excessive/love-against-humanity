@@ -1,0 +1,8 @@
+return {
+	server = "irc.xtil.net",
+	port = 6667,
+	nick = "inhumanity-bot",
+	fullname = "Acrobot X2",
+	channel = "#inhumanity",
+	verbose = true -- echos all messages back to IRC and terminal
+}
