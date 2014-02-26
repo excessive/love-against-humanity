@@ -34,7 +34,7 @@ function irc:process_message(channel, nick, line)
 	return true
 end
 
-function irc:handle_receive(receive)	
+function irc:handle_receive(receive, time)	
 	-- reply to ping
 	if receive:find("PING :") then
 		self.socket:send("PONG :" .. receive:sub(receive:find("PING :") + 6) .. "\r\n\r\n")
@@ -96,6 +96,7 @@ function irc:run(settings)
 	local joined = false
 
 	self.settings = settings
+	self.games = {}
 
 	if self.socket == nil then
 		return self:run(settings)
@@ -105,8 +106,10 @@ function irc:run(settings)
 		self.socket:send("PRIVMSG " .. channel .. " :" .. content ..  "\r\n\r\n")
 	end)
 
+	local start = self.socket:gettime()
 	while true do
 		local ready = socket.select({self.socket}, nil, 0.1)
+		local time = self.socket:gettime() - start
 
 		-- process incoming, reply as needed
 		if ready[self.socket] then
@@ -119,19 +122,19 @@ function irc:run(settings)
 				return run(settings)
 			end
 
-			if not self:handle_receive(receive) then
+			if not self:handle_receive(receive, time) then
 				print("killed by user")
 				return
 			end
 		end
 
 		-- update game timers
-		--for channel, game in pairs(games) do
-		--	game:process_hook(os.time())
-		--	if game.state == "finished" then
-		--		games[channel] = nil
-		--	end
-		--end
+		for channel, game in pairs(self.games) do
+			game:update(time)
+			if #game.players == 0 and #game.spectators == 0 then
+				self.games[channel] = nil
+			end
+		end
 	end
 end
 

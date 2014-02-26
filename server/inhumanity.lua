@@ -95,7 +95,15 @@ local default_rules = {
 		they must confess their ignorance to the group and suffer the
 		resulting humiliation.
 	--]]
-	never_have_i_ever = false
+	never_have_i_ever = false,
+
+	--[[
+		Players submit cards for 60 seconds (+10% for each additional card),
+		Czar has 60 seconds + 5 seconds for each player and an additional 2
+		seconds for any additional cards, i.e. 7 seconds for pick two rounds
+		and 9 seconds for pick 3.
+	]]
+	round_timer = 60,
 }
 
 local Class = require "libs.hump.class"
@@ -110,6 +118,89 @@ Game.states = {
 
 function Game:init()
 	self.rules = deepcopy(default_rules)
+	self.players = {}
+	self.spectators = {}
+	self.max_players = 20
+end
+
+function Game:add_player(name)
+	if #self.players >= self.max_players then
+		-- reject (spectate?)
+		return false
+	end
+	if not self.players[name] then
+		self.players[name] = {
+			score = 0,
+			active = true
+		}
+		return true
+	end
+end
+
+-- Game:drop_player(name, [time]) would happen when a user pings out or something
+-- Game:drop_player(name) would happen when a user leaves or is kicked
+function Game:drop_player(name, time)
+	assert(self.players[name], "Tried to drop a player that wasn't joined!")
+
+	if time then
+		self.players[name].active = false
+		self.inactive_players[name] = time
+	else
+		-- we could've had so much fun together though :(
+		self.players[name] = nil
+	end
+end
+
+function Game:pick_card()
+
+end
+
+function Game:start()
+	-- deal cards
+end
+
+-- it's not you, it's me. -server
+function Game:finish()
+end
+
+function Game:update(time)
+	-- kick players who disconnected more than 30 seconds ago (involuntarily)
+	for player, idle_time in ipairs(self.inactive_players) do
+		if idle_time < time - 30 then
+			self.inactive_players[player] = nil
+		end
+	end
+end
+
+function Game:pseudoFlow()
+	Game:start()
+	
+	for k,v in ipairs(players) do
+		Game:drawCard(10)
+	end
+	
+	czar = love.math.random(1, #players)
+	
+	Game:playBlackCard()
+	
+	for k,v in ipairs(players) do
+		Game:ReceiveWhiteCard(k)
+	end
+	
+	Game:shuffleWhiteCards() -- this may be pedantic, but should still be done
+	
+	Game:SelectWinner() -- also gives point to winner
+	
+	for k,v in ipairs(players) do
+		if v.score > _GOAL then
+			self:finish();
+			return
+		end
+		
+		Game:drawCard(1)
+	end
+	
+	czar = (czar + 1) % #players
 end
 
 return Game
