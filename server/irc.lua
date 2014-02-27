@@ -106,10 +106,10 @@ function irc:run(settings)
 		self.socket:send("PRIVMSG " .. channel .. " :" .. content ..  "\r\n\r\n")
 	end)
 
-	local start = self.socket:gettime()
+	local start = socket.gettime()
 	while true do
 		local ready = socket.select({self.socket}, nil, 0.1)
-		local time = self.socket:gettime() - start
+		local time = socket.gettime() - start
 
 		-- process incoming, reply as needed
 		if ready[self.socket] then
