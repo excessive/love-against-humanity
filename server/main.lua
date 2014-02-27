@@ -1,11 +1,4 @@
-if not love then
-	love = {
-		event = {
-			quit = function() end
-		}
-	}
-	hate = true
-end
+require "hate"
 
 function love.load()
 	local settings = require "settings"
