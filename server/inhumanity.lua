@@ -9,12 +9,11 @@ loud.
 Everyone else answers the question or fills in the blank by passing one White
 Card, face down, to the Card Czar. 
 
-The Card Czar shuffles all of the answers and shares 
-
-each card combination with the group. For full effect, the Card Czar should
-usually re-read the Black Card before presenting each answer. The Card Czar
-then picks a favourite, and whomever played that answer keeps the Black Card as
-one Awesome Point. 
+The Card Czar shuffles all of the answers and shares each card combination
+with the group. For full effect, the Card Czar should usually re-read the
+Black Card before presenting each answer. The Card Czar then picks a
+favourite, and whomever played that answer keeps the Black Card as one
+Awesome Point. 
 
 After the round, a new player becomes the Card Czar, and everyone draws back
 up to ten White Cards. 
@@ -24,8 +23,8 @@ Some cards say PICK 2 on the bottom.
 To answer these, each player plays two White Cards in combination. Play them
 in the order that the Card Czar should read them-the order matters. 
 
-If the Card Czar has lobster claws for hands, you can use paper clips to secure
-the cards in the right order. 
+If the Card Czar has lobster claws for hands, you can use paper clips to
+secure the cards in the right order. 
 
 Gambling 
 
@@ -104,10 +103,17 @@ local default_rules = {
 		and 9 seconds for pick 3.
 	]]
 	round_timer = 60,
+
+	--[[
+		You win if you get to this score.
+	--]]
+	score_limit = 8
 }
 
+require "utils"
 local Class = require "libs.hump.class"
 local Game = Class {}
+local Database = require "database"
 
 Game.states = {
 	"waiting",
@@ -118,9 +124,34 @@ Game.states = {
 
 function Game:init()
 	self.rules = deepcopy(default_rules)
+	--[[
+	players[name] = {
+		active, -- bool
+		score, -- int
+		cards -- table of card IDs
+	}
+	--]]
 	self.players = {}
+
+	-- IMPORTANT: removing players makes #t not work
+	self.current_card = nil -- black
+	self.cards_in_play = {}
+
+	-- same as players
 	self.spectators = {}
 	self.max_players = 20
+
+	-- all the black cards so far
+	self.history = {}
+	
+	self.czar = 0
+end
+
+function Game:set_rule(rule, value)
+	-- prevent weird crashes?
+	if type(value) == type(self.rules[rule]) then
+		self.rules[rule] = value
+	end
 end
 
 function Game:add_player(name)
@@ -129,10 +160,14 @@ function Game:add_player(name)
 		return false
 	end
 	if not self.players[name] then
-		self.players[name] = {
+		local player = {
+			name = name,
+			active = true,
 			score = 0,
-			active = true
+			cards = {}
 		}
+		table.insert(self.players, player)
+		self.players[name] = player
 		return true
 	end
 end
@@ -147,20 +182,134 @@ function Game:drop_player(name, time)
 		self.inactive_players[name] = time
 	else
 		-- we could've had so much fun together though :(
-		self.players[name] = nil
+		for i, player in ipairs(self.players) do
+			if player.name == name then
+				table.remove(self.players, i)
+				table.remove(self.players, name)
+				break
+			end
+		end
 	end
 end
 
-function Game:pick_card()
+function Game:pick_card(card_type)
+	-- if the randomly picked card collided with one in someone else's hand,
+	-- try again (up to 3 times). limited in the event of fantastically small
+	-- chance to get lots of collisions in a row (or way-too-small card db's)
+	local check = {
+		white = function(players, card)
+			for _, player in ipairs(players) do
+				for _, card in ipairs(player.cards) do
+					if card.id == card then
+						return false
+					end
+				end
+			end
+			return true
+		end,
+		black = function(history, card)
+			for _, card in ipairs(history) do
+				if card.id == card then
+					return false
+				end
+			end
+			return true
+		end
+	}
 
+	local card = nil
+
+	for attempt = 1, 3 do
+		card = Database:pick_card(card_type)
+		local data = self.players
+		if card_type == "black" then
+			data = self.history
+		end
+		if check[card_type](data, card) then
+			break
+		end
+	end
+
+	return card
+end
+
+function Game:pick_czar()
+	self.czar = self.czar % #self.players + 1
 end
 
 function Game:start()
-	-- deal cards
+	self.czar = love.math.random(1, #self.players)
+	
+	self:begin_round(true)
 end
 
 -- it's not you, it's me. -server
 function Game:finish()
+	for _, player in ipairs(self.players) do
+		player.cards = {}
+	end
+end
+
+function Game:begin_round(start)
+	--purge cards in play
+	self:purge_cards()
+	
+	--draw to 10
+	for _, player in ipairs(self.players) do
+		while #player.cards < 10 do
+			table.insert(player.cards, self:pick_card("white"))
+		end
+	end
+	
+	--set czar
+	if not start then self:pick_czar() end
+	
+	--play black card
+	self.current_card = self:pick_card("black")
+	
+	--black requires extra card
+	if self.current_card.draw > 0 then
+		for _, player in ipairs(self.players) do
+			for i = 1, self.current_card.draw do
+				table.insert(player.cards, self:pick_card("white"))
+			end
+		end
+	end
+end
+
+-- For debugging purposes!
+function Game:set_czar(name)
+	for i, player in ipairs(self.players) do
+		if player.name == name then
+			self.czar = i
+			break
+		end
+	end
+end
+
+-- ID is the card number in the player's hand.
+function Game:play_card(name, id)
+	local card = {
+		id = self.players[name].cards[id].id,
+		name = name,
+	}
+	
+	table.remove(self.players[name].cards, id)
+	table.insert(self.cards_in_play, card)
+end
+
+function Game:purge_cards()
+	self.cards_in_play = {}
+end
+
+function Game:vote(name, id)
+	local card = self.cards_in_play[id]
+	local player = self.players[card.name]
+	player.score = player.score + 1
+	
+	if player.score >= self.rules.score_limit then
+		player.winner = true
+	end
 end
 
 function Game:update(time)
@@ -170,37 +319,6 @@ function Game:update(time)
 			self.inactive_players[player] = nil
 		end
 	end
-end
-
-function Game:pseudoFlow()
-	Game:start()
-	
-	for k,v in ipairs(players) do
-		Game:drawCard(10)
-	end
-	
-	czar = love.math.random(1, #players)
-	
-	Game:playBlackCard()
-	
-	for k,v in ipairs(players) do
-		Game:ReceiveWhiteCard(k)
-	end
-	
-	Game:shuffleWhiteCards() -- this may be pedantic, but should still be done
-	
-	Game:SelectWinner() -- also gives point to winner
-	
-	for k,v in ipairs(players) do
-		if v.score > _GOAL then
-			self:finish();
-			return
-		end
-		
-		Game:drawCard(1)
-	end
-	
-	czar = (czar + 1) % #players
 end
 
 return Game
