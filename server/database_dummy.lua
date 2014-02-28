@@ -6,7 +6,7 @@ function Database_Dummy:init()
 	-- TODO
 end
 
-function Database_Dummy:pick_card(type)
+function Database_Dummy:pick_card(type, packs)
 	return { id = math.random(), draw = 1 }
 end
 

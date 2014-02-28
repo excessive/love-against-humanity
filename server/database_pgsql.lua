@@ -1,3 +1,4 @@
+-- https://github.com/mbalmer/luapgsql.git
 require "luapgsql.pgsql"
 
 local class = require "libs.hump.class"
@@ -13,7 +14,7 @@ function Database_PgSQL:init()
 	end
 end
 
-function Database_PgSQL:pick_card(type)
+function Database_PgSQL:pick_card(type, packs)
 	local rows = self.connection:exec("select * from black_cards")
 	print(rows:ntuples())
 	--print(self.connection:errorMessage())

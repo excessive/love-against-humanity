@@ -6,6 +6,178 @@ require "utils"
 
 local irc = {}
 
+function irc:init()
+	-- Process Commands
+	Signal.register("channel_message",	self:channel_message)
+	Signal.register("private_message",	self:private_message)
+	
+	-- Channel Commands
+	Signal.register("create",			self:game_create)
+	Signal.register("join",				self:game_join)
+	Signal.register("chat",				self:chat_send)
+	
+	-- Admin Commands
+	Signal.register("option",			self:set_game_option)
+	
+	-- Player Commands
+	Signal.register("sit",				self:game_sit)
+	Signal.register("stand",			self:game_stand)
+	Signal.register("help",				self:game_help)
+	
+	-- Game Commands
+	Signal.register("play",				self:game_play_card)
+	Signal.register("vote",				self:game_vote_vard)
+end
+
+function irc:game_create(nick)
+	
+	return
+end
+
+function irc:game_join(game)
+	
+	return
+end
+
+function irc:chat(nick, line)
+	
+	return
+end
+
+function irc:set_game_option(option, value)
+	if option == "password" then
+		return "password", value
+	end
+
+	if option == "limit" then
+		if value >= 3 and value <= 12 then
+			return "player_limit", value
+		end
+	end
+	
+	if option == "score" then
+		if value >= 3 and value <= 20 then
+			return "score_limit", value
+		end
+	end
+	
+	if option == "timer" then
+		if (value >= 30 and value <= 90) or value == 0 then
+			return "round_timer", value
+		end
+	end
+	
+	return false
+end
+
+function irc:game_sit(nick)
+	
+	return
+end
+
+function irc:game_stand(nick)
+	
+	return
+end
+
+function irc:game_help(nick)
+	
+	return
+end
+
+function irc:game_play_card(card, nick)
+	
+	return
+end
+
+function irc:game_vote_card(card, nick)
+	
+	return
+end
+
+function irc:channel_message(channel nick, line)
+	if line:find("!") == 1 then
+		local command = line:sub(2)
+		local args = {}
+
+		for token in command:split() do
+			table.insert(args, token)
+		end
+		
+		if args[1] == "create" then
+			if not self.games[nick] then
+				Signal.emit("create", nick)
+				return true
+			end
+			
+			return false
+		end
+		
+		if args[1] == "join" then
+			if self.games[args[2]] then
+				Signal.emit("join", args[2])
+				return true
+			end
+			
+			return false
+		end
+	else
+		Signal.emit("chat", nick, line)
+		return true
+	end
+end
+
+function irc:private_message(nick, line)
+	if line:find("!") ~= 1 then return true end
+
+	local command = line:sub(2)
+	local args = {}
+
+	for token in command:split() do
+		table.insert(args, token)
+	end
+	
+	--[[ ADMIN COMMANDS ]]--
+	
+	if self.games[nick] then
+		if args[1] == "option" then
+			if self.rules[args[1]] then
+				return Signal.emit("option", args[2], args[3])
+			end
+			
+			return false
+		end
+	end
+	
+	--[[ PLAYER COMMANDS ]]--
+	
+	if args[1] == "sit" then
+		Signal.emit("sit", nick)
+		return true
+	end
+
+	if args[1] == "stand" then
+		Signal.emit("stand", nick)
+		return true
+	end
+	
+	if args[1] == "help" then
+		Signal.emit("help", nick)
+		return true
+	end
+	
+	--[[ GAME COMMANDS ]]--
+	if args[1] == "play" then
+		Signal.emit("play", args[2], nick)
+		return true
+	end
+	
+	if args[1] == "vote" then
+		Signal.emit("vote", args[2], nick)
+		return true
+	end
+end
+
 function irc:process_channel(channel, nick, line)
 	if line:find("!") ~= 1 then return true end
 
@@ -25,12 +197,16 @@ function irc:process_channel(channel, nick, line)
 			self.settings.verbose = not self.settings.verbose
 		end
 	end
-
+	
+	Signal.emit("channel_message", channel, nick, line)
+	
 	return true
 end
 
-function irc:process_message(channel, nick, line)
+function irc:process_message(nick, line)
 	-- TODO
+	Signal.emit("channel_message", nick, line)
+	
 	return true
 end
 
