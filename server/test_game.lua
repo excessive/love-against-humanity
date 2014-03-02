@@ -1,6 +1,6 @@
 require "hate"
 
-local Inhumanity = require "inhumanity"
+local Inhumanity = require "games.inhumanity.logic"
 
 local game = Inhumanity()
 

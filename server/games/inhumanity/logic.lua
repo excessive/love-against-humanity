@@ -2,7 +2,7 @@ require "utils"
 local Class = require "libs.hump.class"
 local Game = Class {}
 local Database = require "database"
-local default_rules = require "rules"
+local default_rules = require "games.inhumanity.rules"
 
 Game.states = {
 	"waiting",
