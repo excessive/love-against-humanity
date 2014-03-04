@@ -93,8 +93,10 @@ function bot:init(settings)
 
 	-- This is emitted by the IRC lib
 	Signal.register("process_message",	function(...) self:process_message(...) end)
+	Signal.register("process_query",	function(...) self:process_query(...) end)
 	Signal.register("process_join",		function(...) self:process_join(...) end)
 	Signal.register("process_part",		function(...) self:process_part(...) end)
+	Signal.register("process_names",	function(...) self:process_names(...) end)
 	
 	-- These are all emitted by the next functions
 	-- Channel Commands
@@ -142,6 +144,11 @@ function bot:process_message(nick, line, channel)
 	end
 end
 
+function bot:process_query(nick, line, channel)
+	-- handle as a message, for now.
+	self:process_message(nick, line, channel)
+end
+
 function bot:process_join(nick, channel)
 	local game = self.channels[channel]
 	if game then
@@ -153,6 +160,10 @@ end
 -- parts are generally voluntary
 function bot:process_part(nick, channel)
 	--Signal.emit('message', self.settings.channel, "PART: " .. nick .. " (" .. channel .. ")")
+end
+
+function bot:process_names(channel, names)
+	-- TODO
 end
 
 -- quits may not be voluntary (i.e. ping timeout/resets)
