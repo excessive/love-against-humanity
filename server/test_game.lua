@@ -6,18 +6,15 @@ local game = Inhumanity()
 
 assert(game.state == "waiting", "Game is in the wrong initial state.")
 
-game:add_spectator("freem")
-game:add_spectator("shakesoda")
-game:add_spectator("karai")
-game:add_spectator("frenchfry")
-assert(#game.spectators == 4, "Not every spectator made it, somehow.")
-
 game:add_player("freem")
 game:add_player("shakesoda")
 game:add_player("karai")
+game:add_player("frenchfry")
 
-assert(#game.players == 3, "Not every player made it, somehow.")
-assert(#game.spectators == 1, "Players still marked as spectating after joining.")
+assert(#game.players == 4, "Not every player made it, somehow.")
+
+game:drop_player("frenchfry")
+assert(#game.players == 3, "We've got a straggler.")
 
 game:set_rule("score_limit", 2)
 
@@ -57,7 +54,6 @@ assert(game.players["karai"].winner, "Karai should have won the game.")
 
 game:finish()
 
-assert(#game.spectators == 4, "Players are still left over, when there should only be spectators!")
 assert(game.state == "finished", "Karai won, but the game isn't finished!")
 
 print("All tests passed! Yay!")
