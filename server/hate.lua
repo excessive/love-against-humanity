@@ -10,5 +10,5 @@ if not love then
 			end
 		}
 	}
-	hate = not love
+	hate = true
 end
