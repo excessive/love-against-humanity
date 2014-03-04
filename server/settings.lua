@@ -4,5 +4,6 @@ return {
 	nick = "inhumanity-bot",
 	fullname = "Acrobot X2",
 	channel = "#inhumanity",
-	verbose = true -- echos all messages back to IRC and terminal
+	channel_prefix = "#inhumanity",
+	verbose = false -- echos all messages back to IRC and terminal
 }
