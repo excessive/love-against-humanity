@@ -23,15 +23,16 @@ function IRC:part_channel(channel)
 	self.socket:send("PART " .. channel .. "\r\n\r\n")
 end
 
+function IRC:request_names(channel)
+	self.socket:send("NAMES " .. channel .. "\r\n\r\n")
+end
+
+function IRC:request_topic(channel)
+	self.socket:send("TOPIC " .. channel .. "\r\n\r\n")
+end
+
 function IRC:handle_receive(receive, time)	
 	local receive_type = receive:match(":[%w%d%p]+ ([%u%d]+) .+")
-
-	-- End of MOTD, safe to join channel now.
-	if receive_type == "376" then
-		self.socket:send("JOIN " .. self.settings.channel .. "\r\n\r\n")
-		self.joined = true
-		return true
-	end
 
 	-- reply to ping
 	if receive:find("PING :([%wx]+)") == 1 then
@@ -40,7 +41,12 @@ function IRC:handle_receive(receive, time)
 		return true
 	end
 
---	if self.settings.verbose then print(receive) end
+	-- End of MOTD, safe to join channel now.
+	if receive_type == "376" then
+		self.socket:send("JOIN " .. self.settings.channel .. "\r\n\r\n")
+		self.joined = true
+		return true
+	end
 
 	if not self.joined then
 		return true
@@ -54,7 +60,7 @@ function IRC:handle_receive(receive, time)
 		end
 
 		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
-		local nick, channel, line = receive:match(":([%w%d%p]+)!.+ PRIVMSG ([%w%d%p]+) :(.+)")
+		local nick, channel, line = receive:match(":([%w%d%p]+)![%w%d%p]+ PRIVMSG ([%w%d%p]+) :(.+)")
 
 		if line then
 			if channel:find("#") then
@@ -88,6 +94,8 @@ function IRC:handle_receive(receive, time)
 		if not self.names[channel] then
 			self.names[channel] = ""
 		end
+
+		-- accumulate names until we get a 366
 		self.names[channel] = self.names[channel] .. " " .. names
 		if self.settings.verbose then
 			Signal.emit("message", self.settings.channel, names)
@@ -97,11 +105,17 @@ function IRC:handle_receive(receive, time)
 		local names = self.names[channel]
 		if names then
 			Signal.emit("process_names", channel, names:split())
+
+			-- clear out the accumulated names
+			self.names[channel] = nil
 		end
+	-- TOPIC... I don't think we care.
+	elseif receive_type == "332" then
+		local nick, channel, topic = receive:match(":[%w%d%p]+ TOPIC ([%w%d%p]+) (#[%w%d%p]+) :(.+)")
+		Signal.emit("process_topic", nick, channel, topic)
 	-- Shit to ignore.
 	elseif
 		receive_type == "MODE" or
-		receive_type == "332" or -- TOPIC... I don't think we care.
 		receive_type == "333" then -- TOPICWHOTIME. Don't care.
 		-- Pass. Just preventing it from going into the unhandled block.
 	else
