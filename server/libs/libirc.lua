@@ -17,6 +17,14 @@ function IRC:process_message(nick, line, channel)
 	Signal.emit("process_message", nick, line, channel)
 end
 
+function IRC:join_channel(channel)
+	self.socket:send("JOIN " .. channel .. "\r\n\r\n")
+end
+
+function IRC:part_channel(channel)
+	self.socket:send("PART " .. channel .. "\r\n\r\n")
+end
+
 function IRC:handle_receive(receive, time)	
 	-- reply to ping
 	if receive:find("PING :") then
@@ -30,30 +38,45 @@ function IRC:handle_receive(receive, time)
 		joined = true
 	end
 
-	if joined and receive:find("PRIVMSG") then
+	if self.settings.verbose then print(receive) end
+
+	if not joined then
+		return true
+	end
+
+	local receive_type = string.match(receive, ":.+ (%u+) .+")
+
+	if receive_type == "PRIVMSG" then
 		local line = nil
 		local channel = channel
 		if self.settings.verbose then Signal.emit('message', self.settings.channel, receive) end
 
 		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
-		-- local name, message = string.match(message, ":(.+)!.+ PRIVMSG #.+ :(.+)")
-
-		local start = receive:find("PRIVMSG ") + 8
-		local channel = receive:sub(start, receive:find(" :") - 1)
-		if receive:find(" :") then line = receive:sub((receive:find(" :") + 2)) end
-		if receive:find(":") and receive:find("!") then lnick = receive:sub(receive:find(":")+1, receive:find("!")-1) end
+		local nick, channel, line = string.match(receive, ":(.+)!.+ PRIVMSG ([%w%d%p]+) :(.+)")
 
 		if line then
-			self:process_message(lnick, line, channel)
+			self:process_message(nick, line, channel)
 			if self.killed then
 				self.socket:send("QUIT :Goodbye, cruel world!\r\n\r\n")
 				self.socket:close()
 				return false
 			end
 		end
+	elseif receive_type == "JOIN" then
+		local nick, channel = string.match(receive, ":(.+)!.+ JOIN :(#[%w%d%p]+)")
+		if nick and channel then
+			Signal.emit("process_join", nick, channel)
+		end
+	elseif receive_type == "PART" then
+		local nick, channel = string.match(receive, ":(.+)!.+ PART (#[%w%d%p]+)")
+		if nick and channel then
+			Signal.emit("process_part", nick, channel)
+		end
+	elseif receive_type == "QUIT" then
+		-- TODO: this is borked
+		local nick, message = string.match(receive, ":(.+)!.+ QUIT :(.+)")
+		Signal.emit("process_quit", nick, message, time)
 	end
-
-	if self.settings.verbose then print(receive) end
 
 	return true
 end
@@ -82,7 +105,10 @@ function IRC:run()
 		return self:run(self.settings)
 	end
 
-	Signal.register('message', function(channel, content)
+	Signal.register('message', function(channel, content, response_code)
+		if response_code then
+			content = response_code .. ": " .. content
+		end
 		self.socket:send("PRIVMSG " .. channel .. " :" .. content ..  "\r\n\r\n")
 	end)
 

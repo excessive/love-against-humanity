@@ -11,7 +11,7 @@ Game.states = {
 	"finished"
 }
 
-function Game:init()
+function Game:init(name, channel)
 	self.rules = deepcopy(default_rules)
 	--[[
 	players[name] = {
@@ -23,9 +23,6 @@ function Game:init()
 	--]]
 	self.players = {}
 
-	-- same as players
-	self.spectators = {}
-
 	-- IMPORTANT: removing players makes #t not work
 	self.current_card = nil -- black
 	self.cards_in_play = {}
@@ -34,6 +31,10 @@ function Game:init()
 	self.history = {}
 	
 	self.czar = 0
+
+	-- the name of the game (should be the name of the player who made it)
+	self.name = name
+	self.channel = channel
 
 	self.state = "waiting"
 end
@@ -45,50 +46,28 @@ function Game:set_rule(rule, value)
 	end
 end
 
-function Game:add_spectator(name)
-	if #self.spectators + #self.players >= self.rules.max_spectators then
-		-- rejected!
-		return false
-	end
-	if not self.spectators[name] then
-		local spectator = {
-			name = name,
-			active = true,
-			score = 0,
-			cards = {}
-		}
-		table.insert(self.spectators, spectator)
-		self.spectators[name] = spectator
-		return true
-	end
-end
-
 function Game:add_player(name)
-	if #self.players >= self.rules.max_players then
-		-- reject (leave as spectator)
-		return false
+	if self.players[name] then
+		self.players[name].active = true
+		self.inactive_players[name] = nil
 	end
-	if not self.players[name] then
-		table.insert(self.players, self.spectators[name])
-		self.players[name] = self.spectators[name]
 
-		for i, spectator in ipairs(self.spectators) do
-			if spectator.name == name then
-				table.remove(self.spectators, i)
-				self.spectators[name] = nil
-				break
-			end
-		end
-
-		return true
-	end
+	local player = {
+		name	= name,
+		active	= true,
+		score	= 0,
+		cards	= {},
+	}
+	
+	table.insert(self.players, player)
+	self.players[name] = player
 end
 
 -- Game:drop_player(name, [time]) would happen when a user pings out or something
 -- Game:drop_player(name) would happen when a user leaves or is kicked
 function Game:drop_player(name, time)
 	assert(self.players[name], "Tried to drop a player that wasn't joined!")
-
+	
 	if time then
 		self.players[name].active = false
 		self.inactive_players[name] = time
@@ -157,17 +136,20 @@ function Game:pick_czar()
 end
 
 function Game:start()
+	if #self.players < 3 then
+		return false
+	end
+
 	self.czar = love.math.random(1, #self.players)
 	
 	self:begin_round(true)
+
+	return true
 end
 
 -- it's not you, it's me. -server
 function Game:finish()
 	self.state = "finished"
-	for _, _player in ipairs(self.players) do
-		self:add_spectator(_player.name)
-	end
 	self.players = {}
 	self.history = {}
 end

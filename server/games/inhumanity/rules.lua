@@ -113,14 +113,4 @@ return {
 		Maximum players who can sit in a game.
 	--]]
 	max_players = 12,
-	
-	--[[
-		Maximum spectators (+ players) who can watch a game.
-	--]]
-	max_spectators = 24,
-	
-	--[[
-		Optional lockout password for game.
-	--]]
-	password = false,
 }
