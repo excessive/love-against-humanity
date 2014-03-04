@@ -3,18 +3,16 @@ local Class = require "libs.hump.class"
 local socket = require "socket"
 
 local IRC = Class {}
+require "utils"
 
 function IRC:init(settings)
 	self.settings = settings
 	self.killed = false
+	self.names = {}
 end
 
 function IRC:quit()
 	self.killed = true
-end
-
-function IRC:process_message(nick, line, channel)
-	Signal.emit("process_message", nick, line, channel)
 end
 
 function IRC:join_channel(channel)
@@ -26,36 +24,44 @@ function IRC:part_channel(channel)
 end
 
 function IRC:handle_receive(receive, time)	
-	-- reply to ping
-	if receive:find("PING :") then
-		self.socket:send("PONG :" .. receive:sub(receive:find("PING :") + 6) .. "\r\n\r\n")
-		if self.settings.verbose then print("pong") end
-	end
+	local receive_type = receive:match(":.+ ([%u%d]+) .+")
 
-	if receive:find(":End of /MOTD command.") or 
-	   receive:find(":End of message of the day.") then
+	-- End of MOTD, safe to join channel now.
+	if receive_type == "376" then
 		self.socket:send("JOIN " .. self.settings.channel .. "\r\n\r\n")
-		joined = true
-	end
-
-	if self.settings.verbose then print(receive) end
-
-	if not joined then
+		self.joined = true
 		return true
 	end
 
-	local receive_type = string.match(receive, ":.+ (%u+) .+")
+	-- reply to ping
+	if receive:find("PING :([%wx]+)") == 1 then
+		self.socket:send("PONG :" .. receive:sub(receive:find("PING :") + 6) .. "\r\n\r\n")
+		print("pong")
+		return true
+	end
+
+--	if self.settings.verbose then print(receive) end
+
+	if not self.joined then
+		return true
+	end
 
 	if receive_type == "PRIVMSG" then
 		local line = nil
 		local channel = channel
-		if self.settings.verbose then Signal.emit('message', self.settings.channel, receive) end
+		if self.settings.verbose then
+			Signal.emit('message', self.settings.channel, receive)
+		end
 
 		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
-		local nick, channel, line = string.match(receive, ":(.+)!.+ PRIVMSG ([%w%d%p]+) :(.+)")
+		local nick, channel, line = receive:match(":(.+)!.+ PRIVMSG ([%w%d%p]+) :(.+)")
 
 		if line then
-			self:process_message(nick, line, channel)
+			if channel:find("#") then
+				Signal.emit("process_message", nick, line, channel)
+			else
+				Signal.emit("process_query", nick, line, channel)
+			end
 			if self.killed then
 				self.socket:send("QUIT :Goodbye, cruel world!\r\n\r\n")
 				self.socket:close()
@@ -63,20 +69,49 @@ function IRC:handle_receive(receive, time)
 			end
 		end
 	elseif receive_type == "JOIN" then
-		local nick, channel = string.match(receive, ":(.+)!.+ JOIN :(#[%w%d%p]+)")
+		local nick, channel = receive:match(":(.+)!.+ JOIN :(#[%w%d%p]+)")
 		if nick and channel then
 			Signal.emit("process_join", nick, channel)
 		end
 	elseif receive_type == "PART" then
-		local nick, channel = string.match(receive, ":(.+)!.+ PART (#[%w%d%p]+)")
+		local nick, channel = receive:match(":(.+)!.+ PART (#[%w%d%p]+)")
 		if nick and channel then
 			Signal.emit("process_part", nick, channel)
 		end
 	elseif receive_type == "QUIT" then
 		-- TODO: this is borked
-		local nick, message = string.match(receive, ":(.+)!.+ QUIT :(.+)")
+		local nick, message = receive:match(":(.+)!.+ QUIT :(.+)")
 		Signal.emit("process_quit", nick, message, time)
+	-- NAMES
+	elseif receive_type == "353" then
+		local channel, names = receive:match(":.+ 353 .+ @ (#[%w%d%p]+) :(.+)")
+		if not self.names[channel] then
+			self.names[channel] = ""
+		end
+		self.names[channel] = self.names[channel] .. " " .. names
+		if self.settings.verbose then
+			Signal.emit("message", self.settings.channel, names)
+		end
+	-- End of NAMES
+	elseif receive_type == "366" then
+		local names = self.names[channel]
+		if names then
+			Signal.emit("process_names", channel, names:split())
+		end
+	-- Shit to ignore.
+	elseif
+		receive_type == "MODE" or
+		receive_type == "332" or -- TOPIC... I don't think we care.
+		receive_type == "333" then -- TOPICWHOTIME. Don't care.
+		-- Pass. Just preventing it from going into the unhandled block.
+	else
+		if self.settings.verbose then
+			Signal.emit("message", self.settings.channel, "unhandled response: " .. tostring(receive_type) .. ": " .. receive)
+		end
+		print(self.settings.channel, "unhandled response: " .. tostring(receive_type) .. ": " .. receive)
 	end
+
+
 
 	return true
 end
@@ -97,7 +132,7 @@ function IRC:run()
 
 	self.socket = connect(self.settings)
 
-	local joined = false
+	self.joined = false
 
 	self.games = {}
 
