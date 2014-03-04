@@ -24,7 +24,7 @@ function IRC:part_channel(channel)
 end
 
 function IRC:handle_receive(receive, time)	
-	local receive_type = receive:match(":.+ ([%u%d]+) .+")
+	local receive_type = receive:match(":[%w%d%p]+ ([%u%d]+) .+")
 
 	-- End of MOTD, safe to join channel now.
 	if receive_type == "376" then
@@ -54,7 +54,7 @@ function IRC:handle_receive(receive, time)
 		end
 
 		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
-		local nick, channel, line = receive:match(":(.+)!.+ PRIVMSG ([%w%d%p]+) :(.+)")
+		local nick, channel, line = receive:match(":([%w%d%p]+)!.+ PRIVMSG ([%w%d%p]+) :(.+)")
 
 		if line then
 			if channel:find("#") then
@@ -69,22 +69,22 @@ function IRC:handle_receive(receive, time)
 			end
 		end
 	elseif receive_type == "JOIN" then
-		local nick, channel = receive:match(":(.+)!.+ JOIN :(#[%w%d%p]+)")
+		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ JOIN :(#[%w%d%p]+)")
 		if nick and channel then
 			Signal.emit("process_join", nick, channel)
 		end
 	elseif receive_type == "PART" then
-		local nick, channel = receive:match(":(.+)!.+ PART (#[%w%d%p]+)")
+		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ PART (#[%w%d%p]+)")
 		if nick and channel then
 			Signal.emit("process_part", nick, channel)
 		end
 	elseif receive_type == "QUIT" then
 		-- TODO: this is borked
-		local nick, message = receive:match(":(.+)!.+ QUIT :(.+)")
+		local nick, message = receive:match(":([%w%d%p]+)![%w%d%p]+ QUIT :(.+)")
 		Signal.emit("process_quit", nick, message, time)
 	-- NAMES
 	elseif receive_type == "353" then
-		local channel, names = receive:match(":.+ 353 .+ @ (#[%w%d%p]+) :(.+)")
+		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ @ (#[%w%d%p]+) :(.+)")
 		if not self.names[channel] then
 			self.names[channel] = ""
 		end
