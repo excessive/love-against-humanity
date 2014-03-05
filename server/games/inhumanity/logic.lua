@@ -22,6 +22,7 @@ function Game:init(name, channel)
 	}
 	--]]
 	self.players = {}
+	self.inactive_players = {}
 
 	-- IMPORTANT: removing players makes #t not work
 	self.current_card = nil -- black

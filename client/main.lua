@@ -1,9 +1,11 @@
-require "irc"
-require "libs.LoveFrames"
 Gamestate = require "libs.hump.gamestate"
 Signal = require "libs.hump.signal"
 
 function love.load()
+	require "libs.LoveFrames"
+
+	loveframes.util.SetActiveSkin("LAH")
+
 	Signal.register('resize', function()
 		windowWidth		= love.graphics.getWidth()
 		windowHeight	= love.graphics.getHeight()
@@ -11,12 +13,11 @@ function love.load()
 	
 	Signal.emit('resize')
 
-	local gameplay = require("gamestates.gameplay")
-	Gamestate.switch(gameplay)
+	local title = require "gamestates.title"
+	Gamestate.switch(title)
 end
 
 local callbacks = {
-	"errhand", "threaderror",
 	"focus", "visible", "resize",
 	"textinput", "keypressed", "keyreleased",
 	"mousepressed", "mousereleased", "mousefocus",

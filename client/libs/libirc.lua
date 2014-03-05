@@ -94,8 +94,7 @@ function IRC:handle_receive(receive, time)
 		Signal.emit("process_quit", nick, message, time)
 	-- NAMES
 	elseif receive_type == "353" then
-		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ . (#[%w%d%p]+) :(.+)")
-		print(channel, names, receive)
+		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ @ (#[%w%d%p]+) :(.+)")
 		if not self.names[channel] then
 			self.names[channel] = ""
 		end
