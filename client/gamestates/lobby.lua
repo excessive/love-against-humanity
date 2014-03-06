@@ -191,7 +191,9 @@ function lobby:draw()
 end
 
 function lobby:keypressed(key, isrepeat)
-	loveframes.keypressed(key, isrepeat)
+	if key ~= "tab" then
+		loveframes.keypressed(key, isrepeat)
+	end
 	local function prev()
 		self.using_keyboard_navigation = true
 		self.option_selected = self.option_selected - 1
@@ -204,18 +206,29 @@ function lobby:keypressed(key, isrepeat)
 		self.option_selected = self.option_selected + 1
 		self.option_selected = self.option_selected % #self.options + 1
 	end
-	if key == "up" then
-		repeat prev() until self.options[self.option_selected].enabled
+	if not self.chat:focus() then
+		if key == "up" then
+			repeat prev() until self.options[self.option_selected].enabled
+		end
+		if key == "down" then
+			repeat next() until self.options[self.option_selected].enabled
+		end
+		if key == "escape" then
+			self.using_keyboard_navigation = false
+		end
 	end
-	if key == "down" or "tab" then
-		repeat next() until self.options[self.option_selected].enabled
-	end
-	if key == "escape" then
-		self.using_keyboard_navigation = false
+	if key == "tab" then
+		if not self.chat:focus() then
+			Signal.emit("ChatFocus")
+		else
+			Signal.emit("ChatUnfocus")
+		end
 	end
 	if key == "return" then
+		if self.chat:focus() then
+			Signal.emit("ChatSend")
 		-- Don't run the action if the user can't see the highlight.
-		if self.using_keyboard_navigation then
+		elseif self.using_keyboard_navigation then
 			self.options[self.option_selected].action()
 			self.using_keyboard_navigation = false
 		end
@@ -223,7 +236,9 @@ function lobby:keypressed(key, isrepeat)
 end
 
 function lobby:keyreleased(key)
-	loveframes.keyreleased(key)
+	if key ~= "tab" then
+		loveframes.keyreleased(key)
+	end
 end
 
 function lobby:mousepressed(x, y, button)

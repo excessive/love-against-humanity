@@ -174,7 +174,9 @@ function title:draw()
 end
 
 function title:keypressed(key, isrepeat)
-	loveframes.keypressed(key, isrepeat)
+	if key ~= "tab" then
+		loveframes.keypressed(key, isrepeat)
+	end
 	local function prev()
 		self.using_keyboard_navigation = true
 		self.option_selected = self.option_selected - 1
@@ -206,7 +208,9 @@ function title:keypressed(key, isrepeat)
 end
 
 function title:keyreleased(key)
-	loveframes.keyreleased(key)
+	if key ~= "tab" then
+		loveframes.keyreleased(key)
+	end
 end
 
 function title:mousepressed(x, y, button)
