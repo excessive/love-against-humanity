@@ -20,6 +20,8 @@ end
 function title:enter(prevState)
 	love.graphics.setBackgroundColor(100, 100, 100)
 
+	self.titlefont = love.graphics.newFont("assets/fonts/OpenSans-Light.ttf", 32)
+
 	loveframes.SetState("title")
 	local frame = loveframes.Create("frame")
 	frame:SetName("Login")
@@ -89,6 +91,7 @@ function title:enter(prevState)
 		if v.type ~= "textinput" then
 			button:SetText(v.label)
 		else
+			self.options[i].SetFocus = function(v) return button:SetFocus(v) end
 			self.text_fields[v.name] = self.options[i]
 		end
 		button.OnMouseEnter = function(object)
@@ -140,6 +143,25 @@ function title:enter(prevState)
 
 	frame:SetSize(300, love.graphics.getHeight())
 	frame:SetPos(0, 0)
+
+	local title = loveframes.Create("text", frame)
+	title:SetPos(310, 5)
+	title:SetSize(500, 500)
+	title:SetDefaultColor(255, 255, 255, 255)
+	title:SetFont(self.titlefont)
+	title:SetShadow(true)
+	title:SetShadowOffsets(0, 2)
+	title:SetShadowColor(0, 0, 0, 100)
+	title:SetText("LÖVE Against Humanity")
+
+	local body = loveframes.Create("text", frame)
+	body:SetPos(313, 45)
+	body:SetSize(500, 500)
+	body:SetDefaultColor(255, 255, 255, 200)
+	body:SetShadow(true)
+	body:SetShadowOffsets(0, 2)
+	body:SetShadowColor(0, 0, 0, 100)
+	body:SetText("Version 0.01")
 end
 
 function title:resize(x, y)
@@ -159,8 +181,14 @@ function title:draw()
 			if i == self.option_selected then
 				local x, y = option.GetPos()
 				local w, h = option.GetSize()
-				love.graphics.setColor(255, 255, 255, 255)
-				love.graphics.rectangle("line", x, y, w, h)
+				if option.type == "textinput" then
+					option.SetFocus(true)
+				else
+					love.graphics.setColor(100, 130, 230, 255)
+					love.graphics.rectangle("line", x, y, w, h)
+				end
+			elseif option.type == "textinput" then
+				option.SetFocus(false)
 			end
 		end
 	end
@@ -187,21 +215,24 @@ function title:keypressed(key, isrepeat)
 	local function next()
 		self.using_keyboard_navigation = true
 		self.option_selected = self.option_selected + 1
-		self.option_selected = self.option_selected % #self.options + 1
+		if self.option_selected > #self.options then
+			self.option_selected = 1
+		end
 	end
 	if key == "up" then
 		repeat prev() until self.options[self.option_selected].enabled
 	end
-	if key == "down" then
+	if key == "down" or key == "tab" then
 		repeat next() until self.options[self.option_selected].enabled
 	end
 	if key == "escape" then
 		self.using_keyboard_navigation = false
 	end
 	if key == "return" then
+		local option = self.options[self.option_selected]
 		-- Don't run the action if the user can't see the highlight.
 		if self.using_keyboard_navigation then
-			self.options[self.option_selected].action()
+			option.action()
 			self.using_keyboard_navigation = false
 		end
 	end

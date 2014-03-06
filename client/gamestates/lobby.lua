@@ -176,8 +176,14 @@ function lobby:draw()
 			if i == self.option_selected then
 				local x, y = option.GetPos()
 				local w, h = option.GetSize()
-				love.graphics.setColor(255, 255, 255, 255)
-				love.graphics.rectangle("line", x, y, w, h)
+				if option.type == "textinput" then
+					option.SetFocus(true)
+				else
+					love.graphics.setColor(100, 130, 230, 255)
+					love.graphics.rectangle("line", x, y, w, h)
+				end
+			elseif option.type == "textinput" then
+				option.SetFocus(false)
 			end
 		end
 	end
@@ -204,7 +210,9 @@ function lobby:keypressed(key, isrepeat)
 	local function next()
 		self.using_keyboard_navigation = true
 		self.option_selected = self.option_selected + 1
-		self.option_selected = self.option_selected % #self.options + 1
+		if self.option_selected > #self.options then
+			self.option_selected = 1
+		end
 	end
 	if not self.chat:focus() then
 		if key == "up" then
@@ -220,8 +228,10 @@ function lobby:keypressed(key, isrepeat)
 	if key == "tab" then
 		if not self.chat:focus() then
 			Signal.emit("ChatFocus")
+			self.using_keyboard_navigation = false
 		else
 			Signal.emit("ChatUnfocus")
+			self.using_keyboard_navigation = true
 		end
 	end
 	if key == "return" then

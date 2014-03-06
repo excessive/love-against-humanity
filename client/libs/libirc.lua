@@ -67,6 +67,8 @@ function IRC:handle_receive(receive, time)
 		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
 		local nick, channel, line = receive:match(":([%w%d%p]+)![%w%d%p]+ PRIVMSG ([%w%d%p]+) :(.+)")
 
+		print(":".. nick .. " PRIVMSG " .. channel .. " :" .. line)
+
 		if line then
 			if channel:find("#") then
 				Signal.emit("process_message", nick, line, channel)
@@ -94,7 +96,8 @@ function IRC:handle_receive(receive, time)
 		Signal.emit("process_quit", nick, message, time)
 	-- NAMES
 	elseif receive_type == "353" then
-		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ @ (#[%w%d%p]+) :(.+)")
+		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ . (#[%w%d%p]+) :(.+)")
+		print(channel, names, receive)
 		if not self.names[channel] then
 			self.names[channel] = ""
 		end
