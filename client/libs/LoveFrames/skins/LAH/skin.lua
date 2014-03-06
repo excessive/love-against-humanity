@@ -643,8 +643,8 @@ function skin.DrawTabPanel(object)
 	
 	love.graphics.setColor(bodycolor)
 	love.graphics.rectangle("fill", x, y + buttonheight, width, height - buttonheight)
-	love.graphics.setColor(bordercolor)
-	skin.OutlinedRectangle(x, y + buttonheight - 1, width, height - buttonheight + 2)
+--	love.graphics.setColor(bordercolor)
+--	skin.OutlinedRectangle(x, y + buttonheight - 1, width, height - buttonheight + 2)
 	
 	object:SetScrollButtonSize(15, buttonheight)
 
@@ -708,8 +708,8 @@ function skin.DrawTabButton(object)
 		love.graphics.setColor(255, 255, 255, 255)
 		love.graphics.draw(gradient, x, y, 0, width, scaley)
 		-- button border
-		love.graphics.setColor(bordercolor)
-		skin.OutlinedRectangle(x, y, width, height)	
+		--love.graphics.setColor(bordercolor)
+		--skin.OutlinedRectangle(x, y, width, height)	
 		if image then
 			-- button image
 			love.graphics.setColor(255, 255, 255, 255)
@@ -732,8 +732,8 @@ function skin.DrawTabButton(object)
 		love.graphics.setColor(255, 255, 255, 255)
 		love.graphics.draw(gradient, x, y, 0, width, scaley)
 		-- button border
-		love.graphics.setColor(bordercolor)
-		skin.OutlinedRectangle(x, y, width, height)
+--		love.graphics.setColor(bordercolor)
+--		skin.OutlinedRectangle(x, y, width, height)
 		if image then
 			-- button image
 			love.graphics.setColor(255, 255, 255, 150)
@@ -1046,6 +1046,11 @@ function skin.DrawTextInput(object)
 	
 	love.graphics.setColor(230, 230, 230, 255)
 	skin.OutlinedRectangle(x + 1, y + 1, width - 2, height - 2)
+
+	if focus then
+		love.graphics.setColor(100, 130, 230, 255)
+		skin.OutlinedRectangle(x + 1, y + 1, width - 2, height - 2)
+	end
 	
 end
 
