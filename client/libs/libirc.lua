@@ -6,9 +6,127 @@ local IRC = Class {}
 require "utils"
 
 function IRC:init(settings)
-	self.settings = settings
-	self.killed = false
-	self.names = {}
+	self.settings	= settings
+	self.killed		= false
+	self.joined		= false
+	self.names		= {}
+	self.commands	= {}
+	
+	-- TOPIC in channel
+	self.commands["332"] = function(receive)
+		local nick, channel, topic = receive:match(":[%w%d%p]+ TOPIC ([%w%d%p]+) (#[%w%d%p]+) :(.+)")
+		Signal.emit("process_topic", nick, channel, topic)
+	end
+	
+	-- TOPICWHOTIME (Ignore)
+	self.commands["333"] = function(receive) end
+	
+	-- NAMES list in channel
+	self.commands["353"] = function(receive)
+		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ . (#[%w%d%p]+) :(.+)")
+		print(channel, names, receive)
+		
+		-- accumulate names until we get a 366
+		self.names[channel] = self.names[channel] or ""
+		self.names[channel] = self.names[channel] .. " " .. names
+		
+		if self.settings.verbose then
+			Signal.emit("message", self.settings.channel, names)
+		end
+	end
+	
+	-- End of NAMES list in channel
+	self.commands["366"] = function(receive)
+		local channel = receive:match(":[%w%d%p]+ 366 [%w%d%p]+ (#[%w%d%p]+) :.+")
+		local names = self.names[channel]
+
+		if names then
+			Signal.emit("process_names", channel, names)
+
+			-- clear out the accumulated names
+			self.names[channel] = nil
+		end
+	end
+	
+	-- End of MOTD, safe to JOIN
+	self.commands["376"] = function(receive)
+		self.socket:send("JOIN " .. self.settings.channel .. "\r\n\r\n")
+		self.joined = true
+		return true
+	end
+	
+	-- Client joins channel
+	self.commands["JOIN"] = function(receive)
+		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ JOIN :(#[%w%d%p]+)")
+		
+		if nick and channel then
+			Signal.emit("process_join", nick, channel)
+		end
+	end
+	
+	-- Ignore
+	self.commands["MODE"] = function(receive) end
+	
+	-- Client changes nickname
+	self.commands["NICK"] = function(receive)
+		local old_nick, new_nick = receive:match(":([%w%d%p]+)![%w%d%p]+ NICK :(.+)")
+		Signal.emit("process_nick", old_nick, new_nick)	
+	end
+	
+	-- Client leaves channel
+	self.commands["PART"] = function(receive)
+		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ PART (#[%w%d%p]+)")
+		
+		if nick and channel then
+			Signal.emit("process_part", nick, channel)
+		end
+	end
+	
+	-- Message
+	self.commands["PRIVMSG"] = function(receive)
+		local line = nil
+		local channel = channel
+
+		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
+		local nick, channel, line = receive:match(":([%w%d%p]+)![%w%d%p]+ PRIVMSG ([%w%d%p]+) :(.+)")
+
+		print(":".. nick .. " PRIVMSG " .. channel .. " :" .. line)
+
+		if line then
+			if channel:find("#") then
+				Signal.emit("process_message", nick, line, channel)
+			else
+				Signal.emit("process_query", nick, line, channel)
+			end
+			
+			if self.killed then
+				self:quit(true)
+				return false
+			end
+		end
+		
+		if self.settings.verbose then
+			Signal.emit('message', self.settings.channel, receive)
+		end
+	end
+	
+	-- Client quits
+	self.commands["QUIT"] = function(receive)
+		-- TODO: this is borked
+		local nick, message = receive:match(":([%w%d%p]+)![%w%d%p]+ QUIT :(.+)")
+		print(nick, message)
+		Signal.emit("process_quit", nick, message, time)
+	end
+	
+	-- Unhandled responses
+	self.commands["UNHANDLED"] = function(receive, command)
+		local message = "unhandled response: " .. command .. ": " .. receive
+		print(self.settings.channel, message)
+		
+		if self.settings.verbose then
+			Signal.emit("message", self.settings.channel, message)
+		end
+	end
 end
 
 -- XXX: stupid
@@ -36,101 +154,23 @@ function IRC:request_topic(channel)
 	self.socket:send("TOPIC " .. channel .. "\r\n\r\n")
 end
 
-function IRC:handle_receive(receive, time)	
-	local receive_type = receive:match(":[%w%d%p]+ ([%u%d]+) .+")
-
-	-- reply to ping
+function IRC:handle_receive(receive, time)
+	-- Respond to PING
 	if receive:find("PING :([%wx]+)") == 1 then
 		self.socket:send("PONG :" .. receive:sub(receive:find("PING :") + 6) .. "\r\n\r\n")
-		print("pong")
+		print("PONG")
 		return true
 	end
-
-	-- End of MOTD, safe to join channel now.
-	if receive_type == "376" then
-		self.socket:send("JOIN " .. self.settings.channel .. "\r\n\r\n")
-		self.joined = true
-		return true
-	end
-
-	if not self.joined then
-		return true
-	end
-
-	if receive_type == "PRIVMSG" then
-		local line = nil
-		local channel = channel
-		if self.settings.verbose then
-			Signal.emit('message', self.settings.channel, receive)
-		end
-
-		-- :Xkeeper!xkeeper@netadmin.badnik.net PRIVMSG #fart :gas
-		local nick, channel, line = receive:match(":([%w%d%p]+)![%w%d%p]+ PRIVMSG ([%w%d%p]+) :(.+)")
-
-		print(":".. nick .. " PRIVMSG " .. channel .. " :" .. line)
-
-		if line then
-			if channel:find("#") then
-				Signal.emit("process_message", nick, line, channel)
-			else
-				Signal.emit("process_query", nick, line, channel)
-			end
-			if self.killed then
-				self:quit(true)
-				return false
-			end
-		end
-	elseif receive_type == "JOIN" then
-		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ JOIN :(#[%w%d%p]+)")
-		if nick and channel then
-			Signal.emit("process_join", nick, channel)
-		end
-	elseif receive_type == "PART" then
-		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ PART (#[%w%d%p]+)")
-		if nick and channel then
-			Signal.emit("process_part", nick, channel)
-		end
-	elseif receive_type == "QUIT" then
-		-- TODO: this is borked
-		local nick, message = receive:match(":([%w%d%p]+)![%w%d%p]+ QUIT :(.+)")
-		Signal.emit("process_quit", nick, message, time)
-	-- NAMES
-	elseif receive_type == "353" then
-		local channel, names = receive:match(":[%w%d%p]+ 353 [%w%d%p]+ . (#[%w%d%p]+) :(.+)")
-		print(channel, names, receive)
-		if not self.names[channel] then
-			self.names[channel] = ""
-		end
-
-		-- accumulate names until we get a 366
-		self.names[channel] = self.names[channel] .. " " .. names
-		if self.settings.verbose then
-			Signal.emit("message", self.settings.channel, names)
-		end
-	-- End of NAMES
-	elseif receive_type == "366" then
-		local names = self.names[channel]
-		if names then
-			Signal.emit("process_names", channel, names:split())
-
-			-- clear out the accumulated names
-			self.names[channel] = nil
-		end
-	-- TOPIC... I don't think we care.
-	elseif receive_type == "332" then
-		local nick, channel, topic = receive:match(":[%w%d%p]+ TOPIC ([%w%d%p]+) (#[%w%d%p]+) :(.+)")
-		Signal.emit("process_topic", nick, channel, topic)
-	-- Shit to ignore.
-	elseif
-		receive_type == "MODE" or
-		receive_type == "333" then -- TOPICWHOTIME. Don't care.
-		-- Pass. Just preventing it from going into the unhandled block.
+	
+	local command = receive:match(":[%w%d%p]+ ([%u%d]+) .+")
+	
+	if self.commands[command] then
+		return self.commands[command](receive)
 	else
-		if self.settings.verbose then
-			Signal.emit("message", self.settings.channel, "unhandled response: " .. tostring(receive_type) .. ": " .. receive)
-		end
-		print(self.settings.channel, "unhandled response: " .. tostring(receive_type) .. ": " .. receive)
+		return self.commands["UNHANDLED"](receive, command)
 	end
+
+	print(self.settings.channel, "response: " .. command .. ": " .. receive)
 
 	return true
 end

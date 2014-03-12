@@ -1,13 +1,8 @@
 local Timer = require "libs.hump.timer"
 local Chatbox = require "ui.chat"
+local UI = require "ui.lobby"
 
 local lobby = {}
-
--- process_join
--- process_part
--- process_quit
--- process_names
--- process_topic
 
 local responses = {
 	-- channel messages (1xx)
@@ -41,32 +36,81 @@ function lobby:check_games()
 	-- TODO
 end
 
+function lobby:process_join(nick, channel)
+	local text = loveframes.Create("text")
+	text:SetMaxWidth(150)
+	text:SetText(nick)
+	self.user_list:AddItem(text)
+
+	table.sort(self.user_list.children, function(a,b)
+		return a.text < b.text
+	end)
+end
+
+function lobby:process_part(nick, channel)
+	local items = self.user_list.children
+	
+	for i, item in pairs(items) do
+		if item.text == nick then
+			self.user_list:RemoveItem(items[i])
+		end
+	end
+end
+
+function lobby:process_quit(nick, message, time)
+	-- get list of all channels connected to
+	local channel = "#inhumanity"
+	self:process_part(nick, channel)
+end
+
+function lobby:process_nick(old_nick, new_nick)
+
+end
+
+function lobby:process_names(channel, names)
+	print("Users in " .. channel)
+
+	self.user_list:Clear()
+
+	for nick in names:split() do
+		local text = loveframes.Create("text")
+		text:SetMaxWidth(150)
+		text:SetText(nick)
+		self.user_list:AddItem(text)
+	end
+
+	table.sort(self.user_list.children, function(a,b)
+		return a.text < b.text
+	end)
+end
+
 function lobby:process_query(nick, message, channel)
 	local status = message:match("(%d+): .+")
 	print(nick, message, channel, status)
 end
 
+function lobby:process_topic(nick, channel, topic)
+
+end
+
 function lobby:enter(prevState, irc)
-	self.irc = irc
-	self.chat = Chatbox(self.irc.settings)
-	love.graphics.setBackgroundColor(100, 100, 100)
-
 	loveframes.SetState("lobby")
-	local frame = loveframes.Create("frame")
-	frame:SetName("Lobbies")
-	frame:SetState("lobby")
-	frame:ShowCloseButton(false)
-	frame:SetDraggable(false)
-
-	self.frame = frame
+	
+	love.graphics.setBackgroundColor(100, 100, 100)
+	
+	self.irc = irc
 	self.option_selected = 1
-
 	self.timer = Timer.new()
 	self.timer:addPeriodic(30, function() self:check_games() end)
-
 	self.using_keyboard_navigation = false
-
-	self.effects = {}
+	
+	Signal.register("process_join", function(...) self:process_join(...) end)
+	Signal.register("process_part", function(...) self:process_part(...) end)
+	Signal.register("process_quit", function(...) self:process_quit(...) end)
+	Signal.register("process_nick", function(...) self:process_nick(...) end)
+	Signal.register("process_names", function(...) self:process_names(...) end)
+	Signal.register("process_query", function(...) self:process_query(...) end)
+	Signal.register("process_topic", function(...) self:process_topic(...) end)
 
 	local channel = self.irc.settings.bot
 	self.options = {
@@ -97,70 +141,21 @@ function lobby:enter(prevState, irc)
 			end
 		}
 	}
+	
+	self.ui = UI(self.options)
+	self.chat = Chatbox(self.irc.settings)
 
-	local spacing = 0
-	local padding = 8
-	local offset = 40
-	local frame_width = 300
-	local frame_height = 0
-	for i,v in ipairs(self.options) do
-		local button = loveframes.Create("button", frame)
-		local width, height = button:GetSize()
-		spacing = height + 5
-		self.options[i].GetPos = function() return button:GetStaticPos() end
-		self.options[i].GetSize = function() return button:GetSize() end
-		button:SetClickable(v.enabled)
-		button:SetSize(frame_width - padding * 2, height + padding * 2)
-		button:SetPos(padding, frame_height + offset + padding)
-		button:SetText(v.label)
-		button.OnMouseEnter = function(object)
-			if object:GetClickable() then
-				local x, y = object:GetStaticPos()
-				self.effects[object] = {
-					opacity = 0.0
-				}
-				local function fade_in()
-					self.timer:tween(
-						0.1,
-						self.effects[object],
-						{
-							opacity = 1.0
-						}, 'out-quad'
-					)
-				end
-				fade_in()
-			end
-		end
-		button.OnMouseExit = function(object)
-			if object:GetClickable() then
-				local function vanish()
-					self.effects[object] = { opacity = 0 }
-				end
-				local function fade_out()
-					self.timer:tween(
-						0.2,
-						self.effects[object],
-						{
-							opacity = 0.0
-						}, 'out-quad', vanish
-					)
-				end
-				fade_out()
-			end
-		end
-		button.OnClick = function(object)
-			v.action()
-		end
-		frame_height = frame_height + spacing + padding * 2
-	end
-
-	frame:SetSize(300, love.graphics.getHeight())
-	frame:SetPos(0, 0)
+	local panel = loveframes.Create("panel")
+	panel:SetState("lobby")
+	panel:SetSize(150, windowHeight - 310)
+	panel:SetPos(windowWidth - 155, 5)
+	self.user_list = loveframes.Create("list", panel)
+	self.user_list:SetSize(140, windowHeight - 320)
+	self.user_list:SetPos(5, 5)
 end
 
 function lobby:resize(x, y)
-	self.frame:SetPos(0, 0)
-	self.frame:SetSize(300, y)
+	self.ui:resize(300, y)
 end
 
 function lobby:update(dt)
@@ -187,12 +182,7 @@ function lobby:draw()
 			end
 		end
 	end
-	for object, params in pairs(self.effects) do
-		local x, y = object:GetStaticPos()
-		local w, h = object:GetSize()
-		love.graphics.setColor(0, 80, 255, params.opacity * 255)
-		love.graphics.rectangle("line", x, y, w, h)
-	end
+	self.ui:draw_effects()
 	love.graphics.setColor(255, 255, 255, 255)
 end
 
