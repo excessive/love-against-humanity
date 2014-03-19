@@ -105,4 +105,8 @@ function chat:focus(focus)
 	return self.input:GetFocus()
 end
 
+function chat:resize()
+	self.panel:SetPos(300 + 5, windowHeight - 205)
+end
+
 return chat

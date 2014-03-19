@@ -40,19 +40,19 @@ function lobby:process_join(nick, channel)
 	local text = loveframes.Create("text")
 	text:SetMaxWidth(150)
 	text:SetText(nick)
-	self.user_list:AddItem(text)
+	self.ui.user_list:AddItem(text)
 
-	table.sort(self.user_list.children, function(a,b)
+	table.sort(self.ui.user_list.children, function(a,b)
 		return a.text < b.text
 	end)
 end
 
 function lobby:process_part(nick, channel)
-	local items = self.user_list.children
+	local items = self.ui.user_list.children
 	
 	for i, item in pairs(items) do
 		if item.text == nick then
-			self.user_list:RemoveItem(items[i])
+			self.ui.user_list:RemoveItem(items[i])
 		end
 	end
 end
@@ -70,16 +70,16 @@ end
 function lobby:process_names(channel, names)
 	print("Users in " .. channel)
 
-	self.user_list:Clear()
+	self.ui.user_list:Clear()
 
 	for nick in names:split() do
 		local text = loveframes.Create("text")
 		text:SetMaxWidth(150)
 		text:SetText(nick)
-		self.user_list:AddItem(text)
+		self.ui.user_list:AddItem(text)
 	end
 
-	table.sort(self.user_list.children, function(a,b)
+	table.sort(self.ui.user_list.children, function(a,b)
 		return a.text < b.text
 	end)
 end
@@ -144,18 +144,12 @@ function lobby:enter(prevState, irc)
 	
 	self.ui = UI(self.options)
 	self.chat = Chatbox(self.irc.settings)
-
-	local panel = loveframes.Create("panel")
-	panel:SetState("lobby")
-	panel:SetSize(150, windowHeight - 310)
-	panel:SetPos(windowWidth - 155, 5)
-	self.user_list = loveframes.Create("list", panel)
-	self.user_list:SetSize(140, windowHeight - 320)
-	self.user_list:SetPos(5, 5)
 end
 
 function lobby:resize(x, y)
-	self.ui:resize(300, y)
+	self.ui:resize_menu()
+	self.ui:resize_user_panel()
+	self.chat:resize()
 end
 
 function lobby:update(dt)

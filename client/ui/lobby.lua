@@ -10,20 +10,23 @@ function lobby:init(options)
 	local frame_width = 300
 	local frame_height = 0
 	
-	self.frame = loveframes.Create("frame")
-	self.frame:SetState("lobby")
-	self.frame:SetName("Lobbies")
-	self:resize(frame_width, love.graphics.getHeight())
-	--self.frame:SetPos(0, 0)
-	--self.frame:SetSize(frame_width, love.graphics.getHeight())
-	self.frame:ShowCloseButton(false)
-	self.frame:SetDraggable(false)
+	self.menu = loveframes.Create("frame")
+	self.menu:SetState("lobby")
+	self.menu:SetName("Lobbies")
+	self.menu:ShowCloseButton(false)
+	self.menu:SetDraggable(false)
+	self:resize_menu()
+	
+	self.user_panel = loveframes.Create("panel")
+	self.user_panel:SetState("lobby")
+	self.user_list = loveframes.Create("list", self.user_panel)
+	self:resize_user_panel()
 	
 	self.effects = {}
 	self.timer = Timer.new()
 	
 	for i, option in ipairs(options) do
-		local button = loveframes.Create("button", self.frame)
+		local button = loveframes.Create("button", self.menu)
 		local width, height = button:GetSize()
 		spacing = height + 5
 		option.GetPos = function() return button:GetStaticPos() end
@@ -74,9 +77,17 @@ function lobby:init(options)
 	end
 end
 
-function lobby:resize(x, y)
-	self.frame:SetPos(0, 0)
-	self.frame:SetSize(x, y)
+function lobby:resize_menu()
+	self.menu:SetPos(0, 0)
+	self.menu:SetSize(300, windowHeight)
+end
+
+function lobby:resize_user_panel()
+	self.user_panel:SetPos(windowWidth - 160, 0)
+	self.user_panel:SetSize(160, windowHeight - 320)
+	
+	self.user_list:SetPos(5, 5)
+	self.user_list:SetSize(150, self.user_panel:GetHeight() - 10)
 end
 
 function lobby:draw_effects()
