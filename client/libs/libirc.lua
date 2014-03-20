@@ -7,7 +7,6 @@ require "utils"
 
 function IRC:init(settings)
 	self.settings	= settings
-	self.killed		= false
 	self.joined		= false
 	self.names		= {}
 	self.commands	= {}
@@ -98,11 +97,6 @@ function IRC:init(settings)
 			else
 				Signal.emit("process_query", nick, line, channel)
 			end
-			
-			if self.killed then
-				self:quit(true)
-				return false
-			end
 		end
 		
 		if self.settings.verbose then
@@ -112,9 +106,7 @@ function IRC:init(settings)
 	
 	-- Client quits
 	self.commands["QUIT"] = function(receive)
-		-- TODO: this is borked
 		local nick, message = receive:match(":([%w%d%p]+)![%w%d%p]+ QUIT :(.+)")
-		print(nick, message)
 		Signal.emit("process_quit", nick, message, time)
 	end
 	
@@ -130,12 +122,9 @@ function IRC:init(settings)
 end
 
 -- XXX: stupid
-function IRC:quit(send_kill)
-	self.killed = true
-	if send_kill then
-		self.socket:send("QUIT :Goodbye, cruel world!\r\n\r\n")
-		self.socket:close()
-	end
+function IRC:quit()
+	self.socket:send("QUIT :Goodbye, cruel world!\r\n\r\n")
+	self.socket:close()
 end
 
 function IRC:join_channel(channel)
@@ -226,11 +215,6 @@ function IRC:update(dt)
 		end
 
 		self:handle_receive(receive, time)
-
-		if self.killed then
-			print("killed by user")
-			return false
-		end
 	end
 
 	return true

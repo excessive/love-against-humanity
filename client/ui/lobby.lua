@@ -83,8 +83,10 @@ function lobby:resize_menu()
 end
 
 function lobby:resize_user_panel()
-	self.user_panel:SetPos(windowWidth - 160, 0)
-	self.user_panel:SetSize(160, windowHeight - 320)
+	local padding = 5
+	
+	self.user_panel:SetPos(windowWidth - 160 - padding, windowHeight - 200 - padding)
+	self.user_panel:SetSize(160, 200)
 	
 	self.user_list:SetPos(5, 5)
 	self.user_list:SetSize(150, self.user_panel:GetHeight() - 10)

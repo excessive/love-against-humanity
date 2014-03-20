@@ -32,8 +32,13 @@ local responses = {
 	killed = 602,
 }
 
+responses.lookup = {}
+for k,v in pairs(responses) do
+	responses.lookup[v] = k
+end
+
 function lobby:check_games()
-	-- TODO
+	Signal.emit("message", self.irc.settings.bot, "!list")
 end
 
 function lobby:process_join(nick, channel)
@@ -84,23 +89,124 @@ function lobby:process_names(channel, names)
 	end)
 end
 
-function lobby:process_query(nick, message, channel)
-	local status = message:match("(%d+): .+")
-	print(nick, message, channel, status)
+function lobby:process_query(sender, full_message, nick)
+	local status, message = full_message:match("(%d+): (.+)")
+	local channel = message and message:match("(#[%w%d%p]+)") or nil
+	local thingies = {
+		-- channel messages (1xx)
+		list = function(message)
+			function trim(s)
+				return s:match("^()%s*$") and '' or s:match("^%s*(.*%S)")
+			end
+			self.games = {}
+			for game in message:split(",") do
+				local name = trim(game):match("([%w%d%p]+)")
+				if name then
+					table.insert(self.games, name)
+				end
+				print(name)
+			end
+			self:update_games()
+		end,
+		
+		create = function(message)
+			if channel then
+				self.irc:join_channel(channel)
+				self.chat:join_channel(channel)
+				print("Joined " .. channel)
+			end
+		end,
+		
+		join = function(message)
+			if channel then
+				self.irc:join_channel(channel)
+				self.chat:join_channel(channel)
+				print("Joined " .. channel)
+			end
+		end,
+
+		-- admin commands (2xx)
+		option = function(message)
+		end,
+
+		-- player commands (3xx)
+		play = function(message)
+		end,
+
+		-- errors (4xx)
+		not_enough_players = function(message)
+		end,
+		
+		game_already_exists = function(message)
+			if channel then
+				self.irc:join_channel(channel)
+				self.chat:join_channel(channel)
+				print("Joined " .. channel)
+			end
+		end,
+		
+		forbidden = function(message)
+		end,
+		
+		not_found = function(message)
+		end,
+
+		-- misc (6xx)
+		help = function(message)
+		end,
+		
+		killed = function(message)
+		end,
+	}
+	local rescode = responses.lookup[tonumber(status)]
+	local fn = thingies[rescode]
+	if fn then
+		fn(message)
+	end
+	print(sender, full_message, nick, status, message, channel)
 end
 
 function lobby:process_topic(nick, channel, topic)
 
 end
 
+function lobby:update_games()
+	-- update the UI with the shit in self.games
+	self.game_list:Clear()
+
+	for i, name in ipairs(self.games) do
+		local text = loveframes.Create("button")
+		text.OnClick = function(button)
+			local channel = "#inhumanity-" .. button.text
+			self.irc:join_channel(channel)
+			self.chat:join_channel(channel)
+		end
+		text:SetText(name)
+		self.game_list:AddItem(text)
+	end
+
+	table.sort(self.game_list.children, function(a,b)
+		return a.text < b.text
+	end)
+end
+
 function lobby:enter(prevState, irc)
 	loveframes.SetState("lobby")
 	
+	self.panel = loveframes.Create("panel")
+	self.panel:SetState("lobby")
+	self.panel:SetPos(305, 5)
+	self.panel:SetSize(windowWidth - 310, windowHeight - 215)
+
+	self.game_list = loveframes.Create("list", self.panel)
+	self.game_list:SetPos(5, 5)
+	self.game_list:SetSize(windowWidth - 320, windowHeight - 215 - 10)
+
 	love.graphics.setBackgroundColor(100, 100, 100)
-	
 	self.irc = irc
 	self.option_selected = 1
 	self.timer = Timer.new()
+	self.timer:add(1, function() self:check_games() end)
 	self.timer:addPeriodic(30, function() self:check_games() end)
 	self.using_keyboard_navigation = false
 	
@@ -112,19 +218,19 @@ function lobby:enter(prevState, irc)
 	Signal.register("process_query", function(...) self:process_query(...) end)
 	Signal.register("process_topic", function(...) self:process_topic(...) end)
 
-	local channel = self.irc.settings.bot
+	local bot = self.irc.settings.bot
 	self.options = {
 		{
 			label = "New Lobby",
 			enabled = true,
 			action = function()
-				Signal.emit("message", channel, "!create")
+				Signal.emit("message", bot, "!create")
 			end
 		},{
 			label = "List Games",
 			enabled = true,
 			action = function()
-				Signal.emit("message", channel, "!list")
+				Signal.emit("message", bot, "!list")
 			end
 		},{
 			label = "Change Name",
@@ -136,7 +242,7 @@ function lobby:enter(prevState, irc)
 			label = "Quit",
 			enabled = true,
 			action = function()
-				self.irc:quit(true)
+				self.irc:quit()
 				love.event.quit()
 			end
 		}
@@ -156,6 +262,7 @@ function lobby:update(dt)
 	loveframes.update(dt)
 	self.timer:update(dt)
 	self.irc:update(dt)
+	self.chat:update(dt)
 end
 
 function lobby:draw()
