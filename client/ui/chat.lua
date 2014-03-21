@@ -5,18 +5,17 @@ local chat = Class {}
 function chat:init(settings)
 	self.settings = settings
 	self.channels = {}
+	self.users = {}
 	
 	-- Group containing all chat elements
 	self.panel = loveframes.Create("panel")
 	self.panel:SetState("lobby")
 	
 	self.tabs = loveframes.Create("tabs", self.panel)
-	
-	-- Input message
+	--self.users = loveframes.Create("list", self.panel)
 	self.input = loveframes.Create("textinput", self.panel)
-	
-	-- Send message
 	self.buttonSend = loveframes.Create("button", self.panel)
+	
 	self.buttonSend:SetText("Send")
 	self.buttonSend.OnClick = function(this)
 		Signal.emit("ChatSend")
@@ -30,6 +29,13 @@ function chat:init(settings)
 	Signal.register("ChatUnfocus", function() self:focus(false) end)
 	Signal.register("ChatSend", function() self:send() end)
 	Signal.register("process_message", function(...) self:process_message(...) end)
+
+	Signal.register("process_join", function(...) self:process_join(...) end)
+	Signal.register("process_part", function(...) self:process_part(...) end)
+	Signal.register("process_quit", function(...) self:process_quit(...) end)
+	Signal.register("process_names", function(...) self:process_names(...) end)
+	--Signal.register("process_nick", function(...) self:process_nick(...) end)
+
 end
 
 function chat:update(dt)
@@ -43,6 +49,50 @@ function chat:send()
 		self:process_message(self.settings.nick, self.input:GetText(), self.active_channel)
 		self.input:Clear()
 	end
+end
+
+function chat:process_join(nick, channel)
+	local text = loveframes.Create("text")
+	text:SetMaxWidth(150)
+	text:SetText(nick)
+	self.users[channel]:AddItem(text)
+
+	table.sort(self.users[channel].children, function(a,b)
+		return a.text < b.text
+	end)
+end
+
+function chat:process_part(nick, channel)
+	local items = self.users[channel].children
+	
+	for i, item in pairs(items) do
+		if item.text == nick then
+			self.users[channel]:RemoveItem(items[i])
+		end
+	end
+end
+
+function chat:process_quit(nick, message, time)
+	for channel, _ in pairs(self.channels) do
+		self:process_part(nick, channel)
+	end
+end
+
+function chat:process_names(channel, names)
+	print("Users in " .. channel)
+
+	self.users[channel]:Clear()
+
+	for nick in names:split() do
+		local text = loveframes.Create("text")
+		text:SetMaxWidth(150)
+		text:SetText(nick)
+		self.users[channel]:AddItem(text)
+	end
+
+	table.sort(self.users[channel].children, function(a,b)
+		return a.text < b.text
+	end)
 end
 
 function chat:process_message(nick, message, channel)
@@ -61,34 +111,40 @@ end
 
 function chat:resize()
 	local padding = 5
+	local button_height = 25
 	local box_height = 200
-	local userlist_width = 160
-	local box_width = windowWidth - 300 - userlist_width - padding * 3
+	local users_width = 150
+	local box_width = windowWidth - 300 - padding * 2
 	
-	self.panel:SetPos(windowWidth - box_width - userlist_width - padding * 2, windowHeight - box_height - padding)
 	self.panel:SetSize(box_width, box_height)
+	self.panel:SetPos(windowWidth - box_width - padding, windowHeight - box_height - padding)
 	
+	self.tabs:SetSize(box_width - users_width - padding, button_height)
 	self.tabs:SetPos(0, 0)
-	self.tabs:SetSize(box_width, 25)
 	
-	self.buttonSend:SetSize(100, 25 - 2)
-	local width, height = self.buttonSend:GetSize()
-	self.buttonSend:SetPos(box_width - width - padding, box_height - height - padding - 2)
+	self.buttonSend:SetSize(users_width, button_height - 2)
+	self.buttonSend:SetPos(box_width - users_width - padding, box_height - button_height - padding)
 	
-	self.input:SetSize(box_width - self.buttonSend:GetWidth() - padding * 3, 25)
-	local width, height = self.input:GetSize()
-	self.input:SetPos(padding, box_height - height - padding)
+	self.input:SetSize(box_width - users_width - padding * 3, button_height)
+	self.input:SetPos(padding, box_height - button_height - padding)
 	
 	for _, channel in pairs(self.channels) do
-		channel:SetPos(padding, self.tabs:GetHeight() + padding)
-		channel:SetSize(box_width - padding * 2, box_height - self.tabs:GetHeight() - self.buttonSend:GetHeight() - padding * 3)
+		channel:SetSize(box_width - users_width - padding * 3, box_height - button_height * 2 - padding * 3)
+		channel:SetPos(0, 0)
+	end
+	
+	for _, channel in pairs(self.users) do
+		channel:SetSize(users_width, box_height - button_height * 2 - padding * 3)
+		channel:SetPos(box_width - users_width - padding * 2, 0)
 	end
 end
 
 function chat:join_channel(channel)
-	self.channels[channel] = loveframes.Create("list", self.panel)
+	local panel = loveframes.Create("panel", self.panel)
+	self.channels[channel] = loveframes.Create("list", panel)
+	self.users[channel] = loveframes.Create("list", panel)
 	self.channels[channel]:SetAutoScroll(true)
-	self.tabs:AddTab(channel, self.channels[channel])
+	self.tabs:AddTab(channel, panel)
 	self.tabs:SwitchToTab(self.tabs.tabnumber - 1)
 	self:resize()
 end

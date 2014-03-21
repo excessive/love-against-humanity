@@ -17,11 +17,6 @@ function lobby:init(options)
 	self.menu:SetDraggable(false)
 	self:resize_menu()
 	
-	self.user_panel = loveframes.Create("panel")
-	self.user_panel:SetState("lobby")
-	self.user_list = loveframes.Create("list", self.user_panel)
-	self:resize_user_panel()
-	
 	self.effects = {}
 	self.timer = Timer.new()
 	
@@ -80,16 +75,6 @@ end
 function lobby:resize_menu()
 	self.menu:SetPos(0, 0)
 	self.menu:SetSize(300, windowHeight)
-end
-
-function lobby:resize_user_panel()
-	local padding = 5
-	
-	self.user_panel:SetPos(windowWidth - 160 - padding, windowHeight - 200 - padding)
-	self.user_panel:SetSize(160, 200)
-	
-	self.user_list:SetPos(5, 5)
-	self.user_list:SetSize(150, self.user_panel:GetHeight() - 10)
 end
 
 function lobby:draw_effects()

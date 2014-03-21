@@ -41,54 +41,6 @@ function lobby:check_games()
 	Signal.emit("message", self.irc.settings.bot, "!list")
 end
 
-function lobby:process_join(nick, channel)
-	local text = loveframes.Create("text")
-	text:SetMaxWidth(150)
-	text:SetText(nick)
-	self.ui.user_list:AddItem(text)
-
-	table.sort(self.ui.user_list.children, function(a,b)
-		return a.text < b.text
-	end)
-end
-
-function lobby:process_part(nick, channel)
-	local items = self.ui.user_list.children
-	
-	for i, item in pairs(items) do
-		if item.text == nick then
-			self.ui.user_list:RemoveItem(items[i])
-		end
-	end
-end
-
-function lobby:process_quit(nick, message, time)
-	-- get list of all channels connected to
-	local channel = "#inhumanity"
-	self:process_part(nick, channel)
-end
-
-function lobby:process_nick(old_nick, new_nick)
-
-end
-
-function lobby:process_names(channel, names)
-	print("Users in " .. channel)
-
-	self.ui.user_list:Clear()
-
-	for nick in names:split() do
-		local text = loveframes.Create("text")
-		text:SetMaxWidth(150)
-		text:SetText(nick)
-		self.ui.user_list:AddItem(text)
-	end
-
-	table.sort(self.ui.user_list.children, function(a,b)
-		return a.text < b.text
-	end)
-end
-
 function lobby:process_query(sender, full_message, nick)
 	local status, message = full_message:match("(%d+): (.+)")
 	local channel = message and message:match("(#[%w%d%p]+)") or nil
@@ -170,6 +122,17 @@ function lobby:process_topic(nick, channel, topic)
 
 end
 
+function lobby:join_game(channel)
+	self.irc:join_channel(channel)
+	self.chat:join_channel(channel)
+
+	Signal.clear("process_query")
+	Signal.clear("process_topic")
+	Signal.clear("join_game")
+
+	Gamestate.switch(require "gamestates.gameplay", self.irc, self.chat)
+end
+
 function lobby:update_games()
 	-- update the UI with the shit in self.games
 	self.game_list:Clear()
@@ -178,8 +141,7 @@ function lobby:update_games()
 		local text = loveframes.Create("button")
 		text.OnClick = function(button)
 			local channel = "#inhumanity-" .. button.text
-			self.irc:join_channel(channel)
-			self.chat:join_channel(channel)
+			Signal.emit("join_game", channel)
 		end
 		text:SetText(name)
 		self.game_list:AddItem(text)
@@ -210,13 +172,9 @@ function lobby:enter(prevState, irc)
 	self.timer:addPeriodic(30, function() self:check_games() end)
 	self.using_keyboard_navigation = false
 	
-	Signal.register("process_join", function(...) self:process_join(...) end)
-	Signal.register("process_part", function(...) self:process_part(...) end)
-	Signal.register("process_quit", function(...) self:process_quit(...) end)
-	Signal.register("process_nick", function(...) self:process_nick(...) end)
-	Signal.register("process_names", function(...) self:process_names(...) end)
 	Signal.register("process_query", function(...) self:process_query(...) end)
 	Signal.register("process_topic", function(...) self:process_topic(...) end)
+	Signal.register("join_game", function(...) self:join_game(...) end)
 
 	local bot = self.irc.settings.bot
 	self.options = {
@@ -224,7 +182,9 @@ function lobby:enter(prevState, irc)
 			label = "New Lobby",
 			enabled = true,
 			action = function()
+				local channel = "#inhumanity-" .. self.irc.settings.nick
 				Signal.emit("message", bot, "!create")
+				Signal.emit("join_game", channel)
 			end
 		},{
 			label = "List Games",
@@ -250,12 +210,6 @@ function lobby:enter(prevState, irc)
 	
 	self.ui = UI(self.options)
 	self.chat = Chatbox(self.irc.settings)
-end
-
-function lobby:resize(x, y)
-	self.ui:resize_menu()
-	self.ui:resize_user_panel()
-	self.chat:resize()
 end
 
 function lobby:update(dt)
@@ -285,6 +239,12 @@ function lobby:draw()
 	end
 	self.ui:draw_effects()
 	love.graphics.setColor(255, 255, 255, 255)
+end
+
+function lobby:resize(x, y)
+	self.ui:resize_menu()
+	self.ui:resize_user_panel()
+	self.chat:resize()
 end
 
 function lobby:keypressed(key, isrepeat)
