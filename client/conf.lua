@@ -1,6 +1,6 @@
 function love.conf(t)
     t.identity = nil                   -- The name of the save directory (string)
-    t.version = "0.9.0"                -- The LÖVE version this game was made for (string)
+    t.version = "0.9.1"                -- The LÖVE version this game was made for (string)
     t.console = true                   -- Attach a console (boolean, Windows only)
 
     t.window.title = "LÖVE Against Humanity" -- The window title (string)

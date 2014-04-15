@@ -3,7 +3,7 @@ local Timer = require "libs.hump.timer"
 
 local lobby = Class {}
 
-function lobby:init(options)
+function lobby:init(irc)
 	local spacing = 0
 	local padding = 8
 	local offset = 40
@@ -15,12 +15,44 @@ function lobby:init(options)
 	self.menu:SetName("Lobbies")
 	self.menu:ShowCloseButton(false)
 	self.menu:SetDraggable(false)
-	self:resize_menu()
+	self:resize()
 	
 	self.effects = {}
+	self.irc = irc
 	self.timer = Timer.new()
+	self.using_keyboard_navigation = false
+	self.options = {
+		{
+			label = "New Lobby",
+			enabled = true,
+			action = function()
+				local channel = "#inhumanity-" .. self.irc.settings.nick
+				Signal.emit("message", self.irc.settings.bot, "!create")
+				Signal.emit("join_game", channel)
+			end
+		},{
+			label = "List Games",
+			enabled = true,
+			action = function()
+				Signal.emit("message", self.irc.settings.bot, "!list")
+			end
+		},{
+			label = "Change Name",
+			enabled = false,
+			action = function()
+				-- TODO
+			end
+		},{
+			label = "Quit",
+			enabled = true,
+			action = function()
+				self.irc:quit()
+				love.event.quit()
+			end
+		}
+	}
 	
-	for i, option in ipairs(options) do
+	for i, option in ipairs(self.options) do
 		local button = loveframes.Create("button", self.menu)
 		local width, height = button:GetSize()
 		spacing = height + 5
@@ -72,17 +104,64 @@ function lobby:init(options)
 	end
 end
 
-function lobby:resize_menu()
+function lobby:resize()
 	self.menu:SetPos(0, 0)
 	self.menu:SetSize(300, windowHeight)
 end
 
-function lobby:draw_effects()
+function lobby:draw()
+	if self.using_keyboard_navigation then
+		for i, option in ipairs(self.options) do
+			if i == self.option_selected then
+				local x, y = option.GetPos()
+				local w, h = option.GetSize()
+				if option.type == "textinput" then
+					option.SetFocus(true)
+				else
+					love.graphics.setColor(100, 130, 230, 255)
+					love.graphics.rectangle("line", x, y, w, h)
+				end
+			elseif option.type == "textinput" then
+				option.SetFocus(false)
+			end
+		end
+	end
+	
 	for object, params in pairs(self.effects) do
 		local x, y = object:GetStaticPos()
 		local w, h = object:GetSize()
 		love.graphics.setColor(0, 80, 255, params.opacity * 255)
 		love.graphics.rectangle("line", x, y, w, h)
+	end
+end
+
+function lobby:keypressed(key, isrepeat)
+	local function prev()
+		self.using_keyboard_navigation = true
+		self.option_selected = self.option_selected - 1
+		if self.option_selected < 1 then
+			self.option_selected = #self.options
+		end
+	end
+	
+	local function next()
+		self.using_keyboard_navigation = true
+		self.option_selected = self.option_selected + 1
+		if self.option_selected > #self.options then
+			self.option_selected = 1
+		end
+	end
+	
+	if key == "up" then
+		repeat prev() until self.options[self.option_selected].enabled
+	end
+	
+	if key == "down" then
+		repeat next() until self.options[self.option_selected].enabled
+	end
+	
+	if key == "escape" then
+		self.using_keyboard_navigation = false
 	end
 end
 

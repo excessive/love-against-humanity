@@ -54,6 +54,10 @@ function IRC:init(settings)
 		return true
 	end
 	
+	self.commands["433"] = function(receive)
+		self.socket:send("NICK " .. self.settings.nick .. "_\r\n\r\n")
+	end
+
 	-- Client joins channel
 	self.commands["JOIN"] = function(receive)
 		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ JOIN :(#[%w%d%p]+)")

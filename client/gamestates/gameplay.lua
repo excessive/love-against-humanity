@@ -1,36 +1,47 @@
 require "card"
+local UI = require "ui.gameplay"
 
 local gameplay = {}
 
-function process_query(...)
+-- public game actions
+function gameplay:process_message(nick, message, channel)
+	if channel ~= self.channel then return end
+end
+
+-- getting your current cards from the bot, etc.
+function gameplay:process_query(sender, full_message, nick)
+	if sender ~= self.irc.settings.bot then return end
+end
+
+function gameplay:process_topic(nick, channel, topic)
 
 end
 
-function process_topic(...)
-
-end
-
-function leave_game(channel)
-	self.irc:part_channel(channel)
-	self.chat:part_channel(channel)
+function gameplay:leave_game()
+	self.irc:part_channel(self.channel)
+	self.chat:part_channel(self.channel)
 
 	Signal.clear("process_query")
 	Signal.clear("process_topic")
 	Signal.clear("leave_game")
 
-	Gamestate.switch(require "gamestates.lobby", self.irc)
+	Gamestate.switch(require "gamestates.lobby", self.irc, self.chat)
 end
 
-function gameplay:enter(prevState, irc, chat)
+function gameplay:enter(prevState, irc, chat, channel)
 	loveframes.SetState("gameplay")
 	self.irc = irc
 	self.chat = chat
+	self.channel = channel
 	self.chat.panel:SetState("gameplay")
 	
+	self.ui = UI(irc, channel)
+
 	self.cards = {
 		Card(12345, "Buttplugs all up in muh grill", false)
 	}
 
+	Signal.register("process_message", function(...) self:process_message(...) end)
 	Signal.register("process_query", function(...) self:process_query(...) end)
 	Signal.register("process_topic", function(...) self:process_topic(...) end)
 	Signal.register("leave_game", function(...) self:leave_game(...) end)
@@ -48,15 +59,21 @@ function gameplay:draw()
 	end
 	
 	loveframes.draw()
+	self.ui:draw()
 end
 
 function gameplay:resize(x, y)
+	self.ui:resize()
 	self.chat:resize()
 end
 
 function gameplay:keypressed(key, isrepeat)
 	if key ~= "tab" then
 		loveframes.keypressed(key, isrepeat)
+	end
+
+	if not self.chat:focus() then
+		self.ui:keypressed(key, isrepeat)
 	end
 
 	if key == "tab" then

@@ -1,4 +1,4 @@
-if (pcall(require, "luapgsql.pgsql")) then
+if (pcall(require, "pgsql")) then
 	return require "database_pgsql"
 else
 	return require "database_dummy"

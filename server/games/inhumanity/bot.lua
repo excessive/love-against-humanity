@@ -2,6 +2,7 @@ local socket = require "socket"
 local Class = require "libs.hump.class"
 local IRC = require "libs.libirc"
 local Inhumanity = require "games.inhumanity.logic"
+local Database = require "database"
 
 Signal = require "libs.hump.signal"
 
@@ -43,6 +44,8 @@ function bot:init(settings)
 	self.games = {}
 	self.players = {} -- table of players and the game they're in
 	self.channels = {} -- table of channels and their games (just a shortcut)
+	self.database = Database()
+	self.packs = self.database:get_packs()
 	self.commands = {
 		kill = function()
 			self.irc:quit()
@@ -196,7 +199,7 @@ function bot:game_create(nick)
 		Signal.emit('message', nick, nick .. "'s game already exists.", responses.game_already_exists)
 		return
 	end
-	local game = Inhumanity(nick, self.settings.channel_prefix .. "-" .. nick)
+	local game = Inhumanity(nick, self.settings.channel_prefix .. "-" .. nick, self.database, self.packs)
 	self.games[nick] = game
 	self.players[nick] = game
 	self.channels[game.channel] = game

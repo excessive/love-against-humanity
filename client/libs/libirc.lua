@@ -53,7 +53,11 @@ function IRC:init(settings)
 		self.joined = true
 		return true
 	end
-	
+
+	self.commands["433"] = function(receive)
+		self.socket:send("NICK " .. self.settings.nick .. "_\r\n\r\n")
+	end
+
 	-- Client joins channel
 	self.commands["JOIN"] = function(receive)
 		local nick, channel = receive:match(":([%w%d%p]+)![%w%d%p]+ JOIN :(#[%w%d%p]+)")
@@ -129,6 +133,10 @@ end
 
 function IRC:join_channel(channel)
 	self.socket:send("JOIN " .. channel .. "\r\n\r\n")
+end
+
+function IRC:change_nick(nick)
+	self.socket:send("NICK " .. nick .. "\r\n\r\n")
 end
 
 function IRC:part_channel(channel)

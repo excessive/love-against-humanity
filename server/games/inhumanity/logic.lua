@@ -1,7 +1,6 @@
 require "utils"
 local Class = require "libs.hump.class"
 local Game = Class {}
-local Database = require "database"
 local default_rules = require "games.inhumanity.rules"
 
 Game.states = {
@@ -11,7 +10,7 @@ Game.states = {
 	"finished"
 }
 
-function Game:init(name, channel)
+function Game:init(name, channel, database, packs)
 	self.rules = deepcopy(default_rules)
 	--[[
 	players[name] = {
@@ -25,11 +24,11 @@ function Game:init(name, channel)
 	self.inactive_players = {}
 
 	-- IMPORTANT: removing players makes #t not work
+	self.deck = {}
 	self.current_card = nil -- black
 	self.cards_in_play = {}
-
-	-- all the black cards so far
-	self.history = {}
+	self.database = database
+	self.packs = packs
 	
 	self.czar = 0
 
@@ -85,49 +84,10 @@ function Game:drop_player(name, time)
 end
 
 function Game:pick_card(card_type)
-	-- if the randomly picked card collided with one in someone else's hand,
-	-- try again (up to 3 times). limited in the event of fantastically small
-	-- chance to get lots of collisions in a row (or way-too-small card db's)
-	local check = {
-		white = function(players, card)
-			for _, player in ipairs(players) do
-				for _, card in ipairs(player.cards) do
-					if card.id == card then
-						return false
-					end
-				end
-			end
-			return true
-		end,
-		black = function(history, card)
-			for _, card in ipairs(history) do
-				if card.id == card then
-					return false
-				end
-			end
-			return true
-		end
-	}
-
-	local card = nil
-
-	-- TODO
-	local packs = {}
-
-	for attempt = 1, 3 do
-		card = Database:pick_card(card_type, packs)
-		local data = self.players
-		if card_type == "black" then
-			data = self.history
-		end
-		if check[card_type](data, card) then
-			break
-		end
-	end
-
-	if card_type == "black" then
-		table.insert(self.history, card)
-	end
+	local r = love.math.random(#self.deck[card_type])
+	local card = self.deck[card_type][r]
+	
+	table.remove(self.deck[card_type], r)
 
 	return card
 end
@@ -145,6 +105,9 @@ function Game:start()
 	
 	self:begin_round(true)
 
+	self.deck.black = self.database:get_cards("black", self.packs)
+	self.deck.white = self.database:get_cards("white", self.packs)
+	
 	return true
 end
 
@@ -210,6 +173,7 @@ function Game:play_card(name, id)
 end
 
 function Game:purge_cards()
+	self.current_card = nil
 	self.cards_in_play = {}
 end
 

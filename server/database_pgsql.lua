@@ -1,5 +1,6 @@
 -- https://github.com/mbalmer/luapgsql.git
-require "luapgsql.pgsql"
+-- http://www.postgresql.org/docs/9.1/static/libpq-exec.html#LIBPQ-EXEC-SELECT-INFO
+require "pgsql"
 
 local class = require "libs.hump.class"
 
@@ -14,11 +15,47 @@ function Database_PgSQL:init()
 	end
 end
 
-function Database_PgSQL:pick_card(type, packs)
-	local rows = self.connection:exec("select * from black_cards")
-	print(rows:ntuples())
-	--print(self.connection:errorMessage())
-	return { id = math.random(), draw = 1 }
+function Database_PgSQL:get_table(result)
+	local rows = {}
+	for i = 1, result:ntuples() do
+		table.insert(rows, {})
+		
+		for k = 1, result:nfields() do
+			rows[#rows][result:fname(k)] = result:getvalue(i, k)
+		end
+	end
+	
+	for k, row in pairs(rows) do
+		for name, col in pairs(row) do
+			print(k, name, col)
+		end
+	end
+	
+	return rows
+end
+
+function Database_PgSQL:get_cards(type, packs)
+	local where = ""
+	for _, pack in pairs(packs) do
+		where = string.format("%s pack=`%s` or ", where, pack)
+	end
+	
+	where = where:sub(1, -5)
+	
+	local sql = string.format(
+		"select distinct * from %s where %s order by random()",
+		type .. "_cards", where
+	)
+	local result = self.connection:exec(sql)
+	
+	return self:get_table(result)
+end
+
+function Database_PgSQL:get_packs()
+	local sql = "select * from card_set"
+	local result = self.connection:exec(sql)
+	
+	return self:get_table(result)
 end
 
 return Database_PgSQL

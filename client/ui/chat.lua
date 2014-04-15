@@ -63,6 +63,8 @@ function chat:process_join(nick, channel)
 end
 
 function chat:process_part(nick, channel)
+	if not self.users[channel] then return end
+
 	local items = self.users[channel].children
 	
 	for i, item in pairs(items) do
@@ -150,7 +152,11 @@ function chat:join_channel(channel)
 end
 
 function chat:part_channel(channel)
-	self.tabs:RemoveTab(channel)
+	self.tabs:RemoveTab(2)
+	self.tabs:SwitchToTab(self.tabs.tab - 1)
+	-- self.channels[channel] = nil
+	-- self.users[channel] = nil
+	self:resize()
 end
 
 return chat

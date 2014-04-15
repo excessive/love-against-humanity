@@ -130,7 +130,7 @@ function lobby:join_game(channel)
 	Signal.clear("process_topic")
 	Signal.clear("join_game")
 
-	Gamestate.switch(require "gamestates.gameplay", self.irc, self.chat)
+	Gamestate.switch(require "gamestates.gameplay", self.irc, self.chat, channel)
 end
 
 function lobby:update_games()
@@ -152,7 +152,7 @@ function lobby:update_games()
 	end)
 end
 
-function lobby:enter(prevState, irc)
+function lobby:enter(prevState, irc, chat)
 	loveframes.SetState("lobby")
 	
 	self.panel = loveframes.Create("panel")
@@ -170,46 +170,14 @@ function lobby:enter(prevState, irc)
 	self.timer = Timer.new()
 	self.timer:add(1, function() self:check_games() end)
 	self.timer:addPeriodic(30, function() self:check_games() end)
-	self.using_keyboard_navigation = false
 	
 	Signal.register("process_query", function(...) self:process_query(...) end)
 	Signal.register("process_topic", function(...) self:process_topic(...) end)
 	Signal.register("join_game", function(...) self:join_game(...) end)
 
-	local bot = self.irc.settings.bot
-	self.options = {
-		{
-			label = "New Lobby",
-			enabled = true,
-			action = function()
-				local channel = "#inhumanity-" .. self.irc.settings.nick
-				Signal.emit("message", bot, "!create")
-				Signal.emit("join_game", channel)
-			end
-		},{
-			label = "List Games",
-			enabled = true,
-			action = function()
-				Signal.emit("message", bot, "!list")
-			end
-		},{
-			label = "Change Name",
-			enabled = false,
-			action = function()
-				-- TODO
-			end
-		},{
-			label = "Quit",
-			enabled = true,
-			action = function()
-				self.irc:quit()
-				love.event.quit()
-			end
-		}
-	}
-	
-	self.ui = UI(self.options)
-	self.chat = Chatbox(self.irc.settings)
+	self.ui = UI(self.irc)
+	self.chat = chat or Chatbox(self.irc.settings)
+	self.chat.panel:SetState("lobby")
 end
 
 function lobby:update(dt)
@@ -221,29 +189,12 @@ end
 
 function lobby:draw()
 	loveframes.draw()
-	if self.using_keyboard_navigation then
-		for i, option in ipairs(self.options) do
-			if i == self.option_selected then
-				local x, y = option.GetPos()
-				local w, h = option.GetSize()
-				if option.type == "textinput" then
-					option.SetFocus(true)
-				else
-					love.graphics.setColor(100, 130, 230, 255)
-					love.graphics.rectangle("line", x, y, w, h)
-				end
-			elseif option.type == "textinput" then
-				option.SetFocus(false)
-			end
-		end
-	end
-	self.ui:draw_effects()
+	self.ui:draw()
 	love.graphics.setColor(255, 255, 255, 255)
 end
 
 function lobby:resize(x, y)
-	self.ui:resize_menu()
-	self.ui:resize_user_panel()
+	self.ui:resize()
 	self.chat:resize()
 end
 
@@ -251,47 +202,27 @@ function lobby:keypressed(key, isrepeat)
 	if key ~= "tab" then
 		loveframes.keypressed(key, isrepeat)
 	end
-	local function prev()
-		self.using_keyboard_navigation = true
-		self.option_selected = self.option_selected - 1
-		if self.option_selected < 1 then
-			self.option_selected = #self.options
-		end
-	end
-	local function next()
-		self.using_keyboard_navigation = true
-		self.option_selected = self.option_selected + 1
-		if self.option_selected > #self.options then
-			self.option_selected = 1
-		end
-	end
+	
 	if not self.chat:focus() then
-		if key == "up" then
-			repeat prev() until self.options[self.option_selected].enabled
-		end
-		if key == "down" then
-			repeat next() until self.options[self.option_selected].enabled
-		end
-		if key == "escape" then
-			self.using_keyboard_navigation = false
-		end
+		self.ui:keypressed(key, isrepeat)
 	end
+	
 	if key == "tab" then
 		if not self.chat:focus() then
 			Signal.emit("ChatFocus")
-			self.using_keyboard_navigation = false
+			self.ui.using_keyboard_navigation = false
 		else
 			Signal.emit("ChatUnfocus")
-			self.using_keyboard_navigation = true
+			self.ui.using_keyboard_navigation = true
 		end
 	end
 	if key == "return" then
 		if self.chat:focus() then
 			Signal.emit("ChatSend")
 		-- Don't run the action if the user can't see the highlight.
-		elseif self.using_keyboard_navigation then
-			self.options[self.option_selected].action()
-			self.using_keyboard_navigation = false
+		elseif self.ui.using_keyboard_navigation then
+			self.ui.options[self.option_selected].action()
+			self.ui.using_keyboard_navigation = false
 		end
 	end
 end
